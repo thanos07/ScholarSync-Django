@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}{{ conversation.title }} - ScholarSync{% endblock %}
+{% block body_class %}research-page{% endblock %}
+{% block content %}
+<section class="research-shell" data-research-shell>
+  <aside class="research-sidebar" id="research-library" data-research-sidebar>
+    <a class="back-link" href="{% url 'workspace-detail' conversation.workspace.id %}">← {{ conversation.workspace.name }}</a>
+    <h2>Documents</h2>
+    {% for document in conversation.workspace.documents.all %}
+      <a class="side-document" href="{% url 'document-view' document.id %}" target="_blank" rel="noopener">
+        <span>PDF</span>
+        <div><b>{{ document.display_title }}</b><small>{{ document.page_count }} pages</small></div>
+      </a>
+    {% empty %}
+      <p class="muted">Upload a document before asking research questions.</p>
+    {% endfor %}
+  </aside>
+
+  <section class="chat-panel">
+    <div class="chat-head">
+      <div class="chat-head-title">
+        <button
+          class="sidebar-toggle"
+          type="button"
+          aria-controls="research-library"
+          aria-expanded="true"
+          data-sidebar-toggle
+        >
+          <span aria-hidden="true">☰</span>
+          <span data-sidebar-toggle-label>Hide documents</span>
+        </button>
+        <div>
+          <span class="eyebrow">Research conversation</span>
+          <h1>{{ conversation.title }}</h1>
+        </div>
+      </div>
+      <a class="button button-secondary button-small" href="{% url 'conversation-export-pdf' conversation.id %}">Download PDF</a>
+    </div>
+
+    <div class="message-stream" data-message-stream>
+      {% for message in messages_list %}
+        <article class="chat-message {% if message.role == 'USER' %}user-message{% else %}assistant-message{% endif %}">
+          <span class="message-role">{% if message.role == 'USER' %}You{% else %}ScholarSync{% endif %}</span>
+          <button type="button" class="message-copy-button" data-copy-message aria-label="Copy {% if message.role == 'USER' %}question{% else %}answer{% endif %}">Copy</button>
+          <span hidden data-message-raw>{{ message.content }}</span>
+          {% if message.role == 'USER' %}
+            <div class="message-content">{{ message.content|linebreaksbr }}</div>
+          {% else %}
+            <div class="message-content" data-markdown-content>{{ message.content }}</div>
+          {% endif %}
+          {% if message.citations.all %}
+            <div class="citation-list">
+              <b>Evidence</b>
+              {% for citation in message.citations.all %}
+                <a href="{% url 'document-view' citation.document.id %}#page={{ citation.page_number }}" target="_blank" rel="noopener">[{{ citation.citation_number }}] {{ citation.document.display_title }} · p. {{ citation.page_number }}</a>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </article>
+      {% empty %}
+        <div class="chat-empty">
+          <span class="brand-mark large">S</span>
+          <h2>Ask a question across your papers</h2>
+          <p>ScholarSync retrieves evidence first and answers only from the selected research material.</p>
+        </div>
+      {% endfor %}
+    </div>
+
+    <form method="post" class="composer" data-question-composer>
+      {% csrf_token %}
+      {{ form.question }}
+      <button class="button" type="submit">Ask ScholarSync</button>
+    </form>
+  </section>
+
+  <aside class="evidence-panel">
+    <span class="eyebrow">Evidence viewer</span>
+    <h2>Source passages</h2>
+    {% for message in messages_list %}
+      {% for citation in message.citations.all %}
+        <article class="evidence-card">
+          <div><span>[{{ citation.citation_number }}]</span><b>{{ citation.document.display_title }}</b></div>
+          <p>{{ citation.quoted_passage|truncatechars:360 }}</p>
+          <a href="{% url 'document-view' citation.document.id %}#page={{ citation.page_number }}" target="_blank" rel="noopener">Open page {{ citation.page_number }} →</a>
+        </article>
+      {% endfor %}
+    {% empty %}
+      <p class="muted">Supporting passages will appear here after an answer.</p>
+    {% endfor %}
+  </aside>
+</section>
+{% endblock %}

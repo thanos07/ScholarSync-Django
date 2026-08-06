@@ -1,0 +1,32 @@
+[
+  {
+    "id": "effective-attention-nmt",
+    "title": "Effective Approaches to Attention-based Neural Machine Translation",
+    "filename": "effective-attention-nmt.pdf",
+    "description": "Luong, Pham, and Manning compare global and local attention mechanisms for neural machine translation.",
+    "pages": 11,
+    "size_bytes": 249825,
+    "sha256": "a5c2cad84e769520e7c66f3193fdd206505e322a2ca801a411581375d2c4b5e2",
+    "chunks": 55
+  },
+  {
+    "id": "convolutional-seq2seq",
+    "title": "Convolutional Sequence to Sequence Learning",
+    "filename": "convolutional-seq2seq.pdf",
+    "description": "Gehring and colleagues present a fully convolutional encoder-decoder architecture with multi-step attention.",
+    "pages": 15,
+    "size_bytes": 573311,
+    "sha256": "6db054c83fbd890c97b482c381dc4a8fd4f80e64794414eb871bb451cde645bb",
+    "chunks": 75
+  },
+  {
+    "id": "attention-is-all-you-need",
+    "title": "Attention Is All You Need",
+    "filename": "attention-is-all-you-need.pdf",
+    "description": "Vaswani and colleagues introduce the Transformer architecture based entirely on attention mechanisms.",
+    "pages": 11,
+    "size_bytes": 569417,
+    "sha256": "d87d482d5ae7960e2e43d7dd6d21377e60e73e8fce1bf2a01aff7aca8a08c537",
+    "chunks": 36
+  }
+]

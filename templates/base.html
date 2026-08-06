@@ -1,0 +1,41 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="ScholarSync - evidence-grounded AI research workspace">
+  <title>{% block title %}ScholarSync{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.0/dist/katex.min.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.18.0/dist/katex.min.js" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.18.0/dist/contrib/auto-render.min.js" crossorigin="anonymous" defer></script>
+  <script src="{% static 'js/app.js' %}" defer></script>
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="{% url 'home' %}"><span class="brand-mark">S</span><span>ScholarSync</span></a>
+    <nav class="nav-links" aria-label="Primary navigation">
+      <a href="{% url 'demo-home' %}">Demo</a>
+      {% if user.is_authenticated %}
+        <a href="{% url 'workspace-list' %}">Workspace</a>
+        <a href="{% url 'note-list' %}">Notes</a>
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="link-button">Log out</button></form>
+      {% else %}
+        <a href="{% url 'login' %}">Log in</a>
+        <a class="button button-small" href="{% url 'register' %}">Create account</a>
+      {% endif %}
+    </nav>
+  </header>
+  {% if messages %}<div class="toast-stack">{% for message in messages %}<div class="toast">{{ message }}</div>{% endfor %}</div>{% endif %}
+  <main id="main">{% block content %}{% endblock %}</main>
+  <footer class="site-footer">
+    <p>Built by <a href="{{ creator_url }}" target="_blank" rel="noopener noreferrer">{{ creator_name }}</a></p>
+    <p>Evidence-grounded AI research workspace.</p>
+  </footer>
+</body>
+</html>
