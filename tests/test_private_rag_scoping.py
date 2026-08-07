@@ -57,11 +57,14 @@ class PrivateWorkspaceScopingTests(SimpleTestCase):
         self.assertNotIn("tamil", contextual.lower())
 
 from apps.rag.generator import (
+    _formula_answer_covers_evidence,
     _clean_answer_markdown,
     _formula_answer_cache_key,
     _formula_fallback,
+    _normalize_formula_answer_markdown,
     _plain_equation_candidates,
 )
+from apps.conversations.pdf_export import _inline_markup, _latex_to_pdf_markup
 from apps.rag.orchestrator import _formula_signal
 
 
@@ -166,3 +169,122 @@ class FormulaPresentationRegressionTests(SimpleTestCase):
         key_c = _formula_answer_cache_key([second, first], "workspace-formula")
         self.assertEqual(key_a, key_b)
         self.assertNotEqual(key_a, key_c)
+
+
+    def test_evidence_used_section_is_removed(self):
+        answer = (
+            "## Formulas\n\n$$CI = \\frac{\\lambda_{max}-m}{m-1}$$\n\n"
+            "The equation is defined in the paper. [1]\n\n"
+            "## Evidence Used\n- Source 1: CI equation."
+        )
+        cleaned = _clean_answer_markdown(answer)
+        self.assertNotIn("Evidence Used", cleaned)
+        self.assertNotIn("Source 1: CI equation", cleaned)
+
+    def test_plain_formula_lines_are_wrapped_for_katex(self):
+        answer = (
+            "### 1. Consistency Index\n"
+            "CI=(\\lambda_max-m)/(m-1)\n"
+            "\\lambda_max is the largest eigenvalue. [1]\n"
+            "PVLandSuitabilityIndex=sum_(i=1)^n w_i R_i\n"
+        )
+        normalized = _normalize_formula_answer_markdown(answer)
+        self.assertIn(r"CI = \frac{\lambda_{max}-m}{m-1}", normalized)
+        self.assertIn(r"\sum_{i=1}^{n}", normalized)
+        self.assertIn(r"$\lambda_{max}$", normalized)
+
+    def test_pdf_math_markup_removes_raw_latex(self):
+        markup = _latex_to_pdf_markup(r"CI = \\frac{\\lambda_{max}-m}{m-1}")
+        self.assertIn("lambda<sub>max</sub>", markup)
+        self.assertNotIn(r"\\lambda", markup)
+
+    def test_pv_index_nested_wrappers_are_canonicalized(self):
+        answer = (
+            r"$$\text{\mathrm{\mathrm{PVLandSuitabilityIndex}}} "
+            r"= \sum_{i=1}^{n} w_i R_i$$"
+        )
+        normalized = _normalize_formula_answer_markdown(answer)
+        self.assertIn(
+            r"\mathrm{PVLandSuitabilityIndex} = \sum_{i=1}^{n} w_i R_i",
+            normalized,
+        )
+        self.assertNotIn(r"\text{", normalized)
+        self.assertNotIn(r"\mathrm{\mathrm", normalized)
+
+    def test_pdf_fraction_parser_handles_nested_subscript_braces(self):
+        ci = _latex_to_pdf_markup(
+            r"CI = \frac{\lambda_{max}-m}{m-1}"
+        )
+        reciprocity = _latex_to_pdf_markup(
+            r"E_{ij} = \frac{1}{E_{ji}}"
+        )
+        self.assertIn("lambda<sub>max</sub>", ci)
+        self.assertIn("(lambda<sub>max</sub>-m) / (m-1)", ci)
+        self.assertNotIn(r"\frac", ci)
+        self.assertIn("E<sub>ij</sub>", reciprocity)
+        self.assertIn("(1) / (E<sub>ji</sub>)", reciprocity)
+        self.assertNotIn(r"\frac", reciprocity)
+
+    def test_pdf_inline_math_uses_math_markup_not_raw_tex(self):
+        markup = _inline_markup(
+            r"$\lambda_{max}$, $w_i$, $R_i$, and $E_{ij}$"
+        )
+        self.assertIn("lambda<sub>max</sub>", markup)
+        self.assertIn("w<sub>i</sub>", markup)
+        self.assertIn("R<sub>i</sub>", markup)
+        self.assertIn("E<sub>ij</sub>", markup)
+        self.assertNotIn(r"\lambda", markup)
+
+class FormulaCompletenessAndPdfRegressionTests(SimpleTestCase):
+    def _hit(self, ident, page, content):
+        document = SimpleNamespace(
+            id="egypt",
+            display_title="2.16_Egypt_GIS_AHP",
+        )
+        item = SimpleNamespace(
+            id=ident,
+            document_id="egypt",
+            document=document,
+            page_number=page,
+            content_hash=f"hash-{ident}",
+            content=content,
+        )
+        return SimpleNamespace(item=item, score=1.0)
+
+    def test_formula_answer_must_cover_every_verified_named_equation(self):
+        hits = [
+            self._hit(
+                "p5",
+                5,
+                "The pair-wise matrix has reciprocity Eij = 1/Eji.",
+            ),
+            self._hit(
+                "p6",
+                6,
+                "Consistency Index CI = (lambda_max-m)/(m-1). "
+                "Consistency Ratio CR = (CI)/(RI).",
+            ),
+            self._hit(
+                "p8",
+                8,
+                "PVLandSuitabilityIndex = sum_(i=1)^n w_i R_i.",
+            ),
+        ]
+
+        incomplete = (
+            r"$$CI = \frac{\lambda_{max}-m}{m-1}$$" "\n"
+            r"$$CR = \frac{CI}{RI}$$" "\n"
+            r"$$\mathrm{PVLandSuitabilityIndex} = \sum_{i=1}^{n} w_i R_i$$"
+        )
+        complete = incomplete + "\n" + r"$$E_{ij} = \frac{1}{E_{ji}}$$"
+
+        self.assertFalse(_formula_answer_covers_evidence(incomplete, hits))
+        self.assertTrue(_formula_answer_covers_evidence(complete, hits))
+
+    def test_pdf_lambda_uses_readable_ascii_with_subscript(self):
+        markup = _latex_to_pdf_markup(
+            r"CI = \frac{\lambda_{max}-m}{m-1}"
+        )
+        self.assertIn("lambda<sub>max</sub>", markup)
+        self.assertNotIn(r"\lambda", markup)
+        self.assertNotIn("λ", markup)

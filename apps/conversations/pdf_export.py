@@ -1,13 +1,17 @@
 import re
 from html import escape
 from io import BytesIO
+from pathlib import Path
 
+import reportlab
 from django.utils import timezone
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     CondPageBreak,
     HRFlowable,
@@ -27,6 +31,26 @@ INK = colors.HexColor("#292327")
 MUTED = colors.HexColor("#6B6268")
 BORDER = colors.HexColor("#D8D1D6")
 FORMULA_BG = colors.HexColor("#F7F5F6")
+
+
+def _register_formula_font():
+    name = "ScholarSyncFormula"
+    try:
+        pdfmetrics.getFont(name)
+        return name
+    except KeyError:
+        pass
+    try:
+        font_path = Path(reportlab.__file__).resolve().parent / "fonts" / "Vera.ttf"
+        if font_path.exists():
+            pdfmetrics.registerFont(TTFont(name, str(font_path)))
+            return name
+    except Exception:
+        pass
+    return "Helvetica"
+
+
+FORMULA_FONT = _register_formula_font()
 
 SUBSCRIPT_MAP = {
     "₀": "0", "₁": "1", "₂": "2", "₃": "3", "₄": "4",
@@ -173,24 +197,168 @@ def _latex_to_ascii(value):
     return text
 
 
+
+
+def _read_latex_group(text, start):
+    # Return (group_content, next_index) for a balanced {...} group.
+    if start >= len(text) or text[start] != "{":
+        return None
+    depth = 0
+    index = start
+    content_start = start + 1
+
+    while index < len(text):
+        char = text[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[content_start:index], index + 1
+        index += 1
+    return None
+
+
+def _expand_latex_fractions(text):
+    # Convert \frac{...}{...} using balanced braces, including nested scripts.
+    value = str(text or "")
+    output = []
+    index = 0
+    marker = r"\frac"
+
+    while index < len(value):
+        if not value.startswith(marker, index):
+            output.append(value[index])
+            index += 1
+            continue
+
+        cursor = index + len(marker)
+        while cursor < len(value) and value[cursor].isspace():
+            cursor += 1
+
+        numerator = _read_latex_group(value, cursor)
+        if numerator is None:
+            output.append(marker)
+            index += len(marker)
+            continue
+
+        numerator_text, cursor = numerator
+        while cursor < len(value) and value[cursor].isspace():
+            cursor += 1
+
+        denominator = _read_latex_group(value, cursor)
+        if denominator is None:
+            output.append(marker)
+            index += len(marker)
+            continue
+
+        denominator_text, next_index = denominator
+        numerator_text = _expand_latex_fractions(numerator_text)
+        denominator_text = _expand_latex_fractions(denominator_text)
+        output.append(f"({numerator_text}) / ({denominator_text})")
+        index = next_index
+
+    return "".join(output)
+
+
+def _latex_to_pdf_markup(value):
+    # Convert formula LaTeX to readable ReportLab markup.
+    text = str(value or "").strip()
+    text = text.replace(r"\[", "").replace(r"\]", "")
+    text = text.replace(r"\(", "").replace(r"\)", "")
+    text = text.replace("$$", "").replace("$", "")
+
+    text = re.sub(r"\\\\(?=[A-Za-z])", lambda _match: "\\", text)
+    text = _expand_latex_fractions(text)
+
+    for _ in range(8):
+        before = text
+        text = re.sub(
+            r"\\(?:operatorname|mathrm|text)\{([^{}]*)\}",
+            r"\1",
+            text,
+        )
+        if text == before:
+            break
+
+    replacements = {
+        r"\lambda": "lambda",
+        r"\Lambda": "Lambda",
+        r"\max": "max",
+        r"\min": "min",
+        r"\sum": "∑",
+        r"\prod": "∏",
+        r"\sqrt": "√",
+        r"\times": "×",
+        r"\cdot": "·",
+        r"\leq": "≤",
+        r"\geq": "≥",
+        r"\neq": "≠",
+        r"\approx": "≈",
+        r"\infty": "∞",
+        r"\alpha": "α",
+        r"\beta": "β",
+        r"\gamma": "γ",
+        r"\theta": "θ",
+        r"\sigma": "σ",
+        r"\mu": "μ",
+        r"\left": "",
+        r"\right": "",
+        r"\,": " ",
+        r"\;": " ",
+        r"\!": "",
+    }
+    for source, target in replacements.items():
+        text = text.replace(source, target)
+
+    markup = escape(text)
+    markup = re.sub(r"_\{([^{}]+)\}", r"<sub>\1</sub>", markup)
+    markup = re.sub(r"\^\{([^{}]+)\}", r"<super>\1</super>", markup)
+    markup = re.sub(r"_([A-Za-z0-9]+)", r"<sub>\1</sub>", markup)
+    markup = re.sub(r"\^([A-Za-z0-9]+)", r"<super>\1</super>", markup)
+
+    markup = markup.replace("{", "").replace("}", "")
+    markup = re.sub(r"\s+", " ", markup).strip()
+    return markup
+
 def _inline_markup(value):
     """Convert a safe subset of Markdown and inline math to ReportLab markup."""
     raw = _pdf_safe_text(value)
     protected = []
 
-    def stash(content, font="Courier"):
+    def stash(content="", font=FORMULA_FONT, markup=None):
         token = f"ZZSCHOLARFORMULA{len(protected)}ZZ"
-        protected.append((token, f"<font name='{font}'>{escape(content)}</font>"))
+        rendered = markup if markup is not None else escape(content)
+        protected.append((token, f"<font name='{font}'>{rendered}</font>"))
         return token
 
-    # Protect complete math/code spans first. Display math can occasionally
-    # arrive inside a Markdown table cell; convert it to readable PDF-safe
-    # notation instead of printing the raw $$...$$ source.
-    raw = re.sub(r"\$\$([\s\S]+?)\$\$", lambda match: stash(_latex_to_ascii(match.group(1))), raw)
-    raw = re.sub(r"\\\[([\s\S]+?)\\\]", lambda match: stash(_latex_to_ascii(match.group(1))), raw)
-    raw = re.sub(r"\\\((.+?)\\\)", lambda match: stash(_latex_to_ascii(match.group(0))), raw)
-    raw = re.sub(r"(?<!\$)\$([^$\n]+?)\$(?!\$)", lambda match: stash(_latex_to_ascii(match.group(0))), raw)
-    raw = re.sub(r"`([^`]+)`", lambda match: stash(match.group(1)), raw)
+    # Protect math before Markdown emphasis. Use the same balanced-brace PDF
+    # converter for inline and display math.
+    raw = re.sub(
+        r"\$\$([\s\S]+?)\$\$",
+        lambda match: stash(markup=_latex_to_pdf_markup(match.group(1))),
+        raw,
+    )
+    raw = re.sub(
+        r"\\\[([\s\S]+?)\\\]",
+        lambda match: stash(markup=_latex_to_pdf_markup(match.group(1))),
+        raw,
+    )
+    raw = re.sub(
+        r"\\\((.+?)\\\)",
+        lambda match: stash(markup=_latex_to_pdf_markup(match.group(1))),
+        raw,
+    )
+    raw = re.sub(
+        r"(?<!\$)\$([^$\n]+?)\$(?!\$)",
+        lambda match: stash(markup=_latex_to_pdf_markup(match.group(1))),
+        raw,
+    )
+    raw = re.sub(
+        r"`([^`]+)`",
+        lambda match: stash(match.group(1), font="Courier"),
+        raw,
+    )
 
     # Protect PDF-safe sub/superscript notation that appears in normal prose.
     raw = re.sub(
@@ -262,7 +430,7 @@ def _markdown_flowables(value, styles, available_width):
                     closed = True
                 else:
                     formula += " " + next_line
-            safe_formula = escape(_latex_to_ascii(formula))
+            safe_formula = _latex_to_pdf_markup(formula)
             flowables.append(Paragraph(safe_formula, styles["Formula"]))
             flowables.append(Spacer(1, 5))
             index += 1
@@ -409,7 +577,7 @@ def build_conversation_pdf(conversation, messages):
     styles.add(ParagraphStyle(name="Role", parent=styles["Normal"], fontName="Helvetica-Bold", textColor=PLUM, fontSize=10.5, leading=13, spaceBefore=10, spaceAfter=7, keepWithNext=True))
     styles.add(ParagraphStyle(name="UserMessage", parent=styles["BodyText"], textColor=INK, fontSize=10, leading=15, backColor=STONE, borderColor=BORDER, borderWidth=0.7, borderPadding=10, spaceAfter=8, splitLongWords=True))
     styles.add(ParagraphStyle(name="Body", parent=styles["BodyText"], textColor=INK, fontSize=9.6, leading=14.4, spaceAfter=6, splitLongWords=True))
-    styles.add(ParagraphStyle(name="Formula", parent=styles["Code"], fontName="Courier", textColor=INK, fontSize=8.6, leading=12.5, backColor=FORMULA_BG, borderColor=BORDER, borderWidth=0.6, borderPadding=8, leftIndent=3, rightIndent=3, alignment=TA_LEFT, splitLongWords=True))
+    styles.add(ParagraphStyle(name="Formula", parent=styles["BodyText"], fontName=FORMULA_FONT, textColor=INK, fontSize=10.2, leading=15.2, backColor=FORMULA_BG, borderColor=BORDER, borderWidth=0.6, borderPadding=9, leftIndent=3, rightIndent=3, alignment=TA_CENTER, splitLongWords=True, spaceBefore=2, spaceAfter=2))
     styles.add(ParagraphStyle(name="Quote", parent=styles["Body"], textColor=MUTED, leftIndent=10, borderColor=PLUM, borderWidth=1.3, borderPadding=7, backColor=STONE))
     styles.add(ParagraphStyle(name="SourceHeading", parent=styles["Normal"], fontName="Helvetica-Bold", textColor=PLUM, fontSize=9.2, leading=12, spaceBefore=7, spaceAfter=4, keepWithNext=True))
     styles.add(ParagraphStyle(name="SourceLine", parent=styles["Normal"], textColor=MUTED, fontSize=8.3, leading=11.5, leftIndent=8, spaceAfter=2.5))

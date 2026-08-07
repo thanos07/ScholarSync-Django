@@ -139,7 +139,7 @@ def _formula_answer_cache_key(hits, answer_mode):
         content_hash = getattr(item, "content_hash", "") or hashlib.sha256(content.encode("utf-8")).hexdigest()
         parts.append(f"{document_id}:{page}:{content_hash}")
     digest = hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
-    return f"scholarsync:formula-answer:v1:{digest}"
+    return f"scholarsync:formula-answer:v3:{digest}"
 
 
 def _normalize_html_math(text):
@@ -600,7 +600,6 @@ def _extractive_answer(question, hits, answer_mode="general"):
 
 
 def _clean_answer_markdown(text):
-    """Normalize model Markdown and remove structured-output/meta leakage."""
     if not text:
         return ""
     value = _normalize_html_math(text)
@@ -608,17 +607,168 @@ def _clean_answer_markdown(text):
     for line in value.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
         stripped = line.strip()
         label = re.sub(r"^#{1,6}\s*", "", stripped).strip()
-        # Structured-output metadata is not user-facing content. A model can
-        # occasionally render this boolean field as its own Markdown section;
-        # everything after it is meta-commentary, so stop there.
-        if re.match(r"^(?:evidence sufficient|evidence_sufficient)\s*:?(?:\s*(?:yes|no|true|false))?\s*$", label, re.I):
+        if re.match(
+            r"^(?:evidence sufficient|evidence_sufficient|evidence used|"
+            r"evidence sources|used evidence|citation map|source map)"
+            r"\s*:?(?:\s*(?:yes|no|true|false))?\s*$",
+            label,
+            re.I,
+        ):
             break
-        if re.match(r"^(?:answer markdown|answer_markdown|sources used|used_sources)\s*:?.*$", label, re.I):
+        if re.match(
+            r"^(?:answer markdown|answer_markdown|sources used|used_sources)\s*:?.*$",
+            label,
+            re.I,
+        ):
             continue
         if re.match(r"^sources?\s*:\s*(?:\[\d+\]\s*)+$", stripped, re.I):
             continue
         cleaned.append(line.rstrip())
     return "\n".join(cleaned).strip()
+
+
+def _normalize_formula_latex(expression):
+    # Canonicalize accepted formula text for KaTeX without changing its meaning.
+    value = str(expression or "").strip().strip("`")
+    value = value.replace("¼", "=").replace("＝", "=")
+    value = value.replace("−", "-").replace("–", "-")
+    value = value.replace(r"\(", "").replace(r"\)", "")
+    value = value.replace("$$", "").strip()
+
+    # Collapse an accidental doubled TeX-command slash such as \\lambda.
+    value = re.sub(r"\\\\(?=[A-Za-z])", lambda _match: "\\", value)
+
+    # Strip only wrappers around this exact PV label, then add one canonical
+    # \mathrm. Repeating handles nested \text/\mathrm wrappers.
+    for _ in range(5):
+        previous = value
+        value = re.sub(
+            r"\\(?:text|mathrm)\{\s*PVLandSuitabilityIndex\s*\}",
+            "PVLandSuitabilityIndex",
+            value,
+        )
+        if value == previous:
+            break
+
+    value = re.sub(
+        r"(?<![A-Za-z])PVLandSuitabilityIndex(?![A-Za-z])",
+        r"\\mathrm{PVLandSuitabilityIndex}",
+        value,
+    )
+
+    value = re.sub(
+        r"\\lambda_(?:\{)?max(?:\})?",
+        r"\\lambda_{max}",
+        value,
+    )
+    value = re.sub(
+        r"(?<!\\)\blambda_(?:\{)?max(?:\})?",
+        r"\\lambda_{max}",
+        value,
+        flags=re.I,
+    )
+    value = re.sub(
+        r"(?<!\\)\bsum_\(([^)]+)\)\^([A-Za-z0-9]+)",
+        r"\\sum_{\1}^{\2}",
+        value,
+    )
+    value = re.sub(
+        r"\b([A-Za-z])_([A-Za-z]{2,})\b",
+        r"\1_{\2}",
+        value,
+    )
+
+    fraction = re.fullmatch(
+        r"\s*(.+?)\s*=\s*\(([^()]*)\)\s*/\s*\(([^()]*)\)\s*",
+        value,
+    )
+    if fraction:
+        lhs, numerator, denominator = fraction.groups()
+        value = (
+            f"{lhs.strip()} = "
+            f"\\frac{{{numerator.strip()}}}{{{denominator.strip()}}}"
+        )
+    else:
+        value = re.sub(r"\s*=\s*", " = ", value, count=1)
+
+    value = re.sub(r"\\\\(?=[A-Za-z])", lambda _match: "\\", value)
+    return re.sub(r"[ \t]+", " ", value).strip()
+
+def _normalize_inline_formula_tokens(line):
+    value = str(line or "")
+    if "$$" in value:
+        return value
+
+    # Never wrap tokens that are already inside inline-math delimiters.
+    # Wrapping ``w_i`` inside ``\\(w_i\\)`` previously produced
+    # ``\\($w_i$\\)``, which KaTeX correctly rejected as nested math.
+    protected = []
+
+    def stash(match):
+        token = f"ZZSCHOLARSYNCINLINEMATH{len(protected)}ZZ"
+        protected.append((token, match.group(0)))
+        return token
+
+    value = re.sub(
+        r"(?<!\\)\$[^$\n]+?(?<!\\)\$|\\\([^\n]*?\\\)|\\\[[^\n]*?\\\]",
+        stash,
+        value,
+    )
+
+    value = re.sub(r"\\lambda_(?:\{)?max(?:\})?", r"$\\lambda_{max}$", value)
+    value = re.sub(r"\bE_ij\b", r"$E_{ij}$", value)
+    value = re.sub(r"\bE_ji\b", r"$E_{ji}$", value)
+    value = re.sub(r"\bw_i\b", r"$w_i$", value)
+    value = re.sub(r"\bR_i\b", r"$R_i$", value)
+
+    for token, original in protected:
+        value = value.replace(token, original)
+    return value
+
+
+def _normalize_formula_answer_markdown(text):
+    if not text:
+        return ""
+    lines = str(text).replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    output = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        stripped = line.strip()
+        if stripped.startswith("$$") and stripped.endswith("$$") and len(stripped) > 4:
+            output.extend(["$$", _normalize_formula_latex(stripped[2:-2].strip()), "$$"])
+            index += 1
+            continue
+        if stripped == "$$":
+            formula_lines = []
+            index += 1
+            while index < len(lines) and lines[index].strip() != "$$":
+                formula_lines.append(lines[index].strip())
+                index += 1
+            expression = " ".join(part for part in formula_lines if part).strip()
+            if expression:
+                output.extend(["$$", _normalize_formula_latex(expression), "$$"])
+            if index < len(lines) and lines[index].strip() == "$$":
+                index += 1
+            continue
+        citation = ""
+        candidate = stripped
+        citation_match = re.search(r"\s*(\[\d+\])\s*$", candidate)
+        if citation_match:
+            citation = citation_match.group(1)
+            candidate = candidate[:citation_match.start()].strip()
+        named = bool(re.match(r"^(?:CI|CR|PVLandSuitabilityIndex|E_?ij|E_\{ij\})\s*=", candidate, re.I))
+        if "=" in candidate and (named or _has_plain_equation(candidate)):
+            output.extend(["$$", _normalize_formula_latex(candidate), "$$"])
+            if citation:
+                output.append(citation)
+            index += 1
+            continue
+        output.append(_normalize_inline_formula_tokens(line))
+        index += 1
+    value = "\n".join(output)
+    return re.sub(r"\n{3,}", "\n\n", value).strip()
+
 
 def _contains_display_math(text):
     if not text:
@@ -782,6 +932,73 @@ def _retry_after_seconds(response, default_delay):
     return default_delay
 
 
+
+def _formula_lhs_key(value):
+    # Return a stable key for supported explicit formula left-hand sides.
+    lhs = str(value or "").split("=", 1)[0]
+    lhs = re.sub(
+        r"\\(?:mathrm|text|operatorname)\{([^{}]+)\}",
+        r"\1",
+        lhs,
+    )
+    compact = re.sub(r"[^A-Za-z0-9]+", "", lhs).lower()
+
+    if compact == "ci" or compact.endswith("consistencyindexci"):
+        return "ci"
+    if compact == "cr" or compact.endswith("consistencyratiocr"):
+        return "cr"
+    if "pvlandsuitabilityindex" in compact:
+        return "pvlandsuitabilityindex"
+    if compact in {"eij", "aij"}:
+        return compact
+    return ""
+
+
+def _expected_formula_keys(hits):
+    # Collect distinct explicit formula identities visible in retrieved evidence.
+    keys = set()
+    for hit in hits or []:
+        content = str(getattr(hit.item, "content", "") or "")
+        for equation in _plain_equation_candidates(content):
+            key = _formula_lhs_key(equation)
+            if key:
+                keys.add(key)
+    return keys
+
+
+def _answer_formula_keys(answer):
+    # Collect supported formula identities actually present in an answer.
+    value = str(answer or "")
+    value = re.sub(
+        r"\\(?:mathrm|text|operatorname)\{([^{}]+)\}",
+        r"\1",
+        value,
+    )
+    value = value.replace("{", "").replace("}", "")
+
+    keys = set()
+    if re.search(r"(?<![A-Za-z])CI\s*=", value, re.I):
+        keys.add("ci")
+    if re.search(r"(?<![A-Za-z])CR\s*=", value, re.I):
+        keys.add("cr")
+    if re.search(r"PVLandSuitabilityIndex\s*=", value, re.I):
+        keys.add("pvlandsuitabilityindex")
+    if re.search(r"\bE\s*_?\s*ij\s*=", value, re.I):
+        keys.add("eij")
+    if re.search(r"\bA\s*_?\s*ij\s*=", value, re.I):
+        keys.add("aij")
+    return keys
+
+
+def _formula_answer_covers_evidence(answer, hits):
+    # Require formula answers to include every verified named equation in evidence.
+    expected = _expected_formula_keys(hits)
+    if not expected:
+        return True
+    present = _answer_formula_keys(answer)
+    return expected.issubset(present)
+
+
 def generate_answer(question, hits, conversation_context=None, answer_mode="general"):
     if not hits:
         return (
@@ -794,11 +1011,15 @@ def generate_answer(question, hits, conversation_context=None, answer_mode="gene
     if formula_cache_key:
         cached = cache.get(formula_cache_key)
         if isinstance(cached, dict) and cached.get("answer"):
-            return (
-                cached["answer"],
-                cached.get("confidence", "high"),
-                cached.get("model", "formula-cache"),
-            )
+            cached_answer = _clean_answer_markdown(cached["answer"])
+            cached_answer = _normalize_formula_answer_markdown(cached_answer)
+            if _formula_answer_covers_evidence(cached_answer, hits):
+                return (
+                    cached_answer,
+                    cached.get("confidence", "high"),
+                    cached.get("model", "formula-cache"),
+                )
+            cache.delete(formula_cache_key)
 
     formula_evidence_present = (
         answer_mode in {"formula", "workspace-formula"}
@@ -843,6 +1064,8 @@ def generate_answer(question, hits, conversation_context=None, answer_mode="gene
                 )
                 answer, used_sources, sufficient = _parse_model_content(content)
                 answer = _clean_answer_markdown(answer)
+                if answer_mode in {"formula", "workspace-formula"}:
+                    answer = _normalize_formula_answer_markdown(answer)
                 answer = _normalize_citations(answer, len(hits))
                 used_sources = [n for n in used_sources if 1 <= n <= len(hits)]
 
@@ -856,6 +1079,19 @@ def generate_answer(question, hits, conversation_context=None, answer_mode="gene
                     continue
 
                 if answer_mode in {"formula", "workspace-formula"} and answer:
+                    if (
+                        formula_evidence_present
+                        and not _looks_insufficient(answer)
+                        and not _formula_answer_covers_evidence(answer, hits)
+                    ):
+                        logger.warning(
+                            "Groq formula answer omitted verified equations from supplied evidence; "
+                            "retrying (attempt=%s, structured=%s).",
+                            attempt_index,
+                            structured,
+                        )
+                        continue
+
                     if _looks_insufficient(answer) and formula_evidence_present:
                         logger.warning(
                             "Groq claimed formula evidence was insufficient even though equation-bearing "
