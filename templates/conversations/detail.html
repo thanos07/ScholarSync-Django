@@ -5,15 +5,29 @@
 <section class="research-shell" data-research-shell>
   <aside class="research-sidebar" id="research-library" data-research-sidebar>
     <a class="back-link" href="{% url 'workspace-detail' conversation.workspace.id %}">← {{ conversation.workspace.name }}</a>
-    <h2>Documents</h2>
+    <span class="eyebrow">Private library</span>
+    <h2>Uploaded documents</h2>
     {% for document in conversation.workspace.documents.all %}
-      <a class="side-document" href="{% url 'document-view' document.id %}" target="_blank" rel="noopener">
+      <a class="side-document active" href="{% url 'document-view' document.id %}" target="_blank" rel="noopener">
         <span>PDF</span>
-        <div><b>{{ document.display_title }}</b><small>{{ document.page_count }} pages</small></div>
+        <div>
+          <b>{{ document.display_title }}</b>
+          <small>{{ document.page_count }} pages · {{ document.get_processing_status_display }}</small>
+        </div>
       </a>
     {% empty %}
       <p class="muted">Upload a document before asking research questions.</p>
     {% endfor %}
+
+    <div class="demo-note">
+      <b>Try asking</b>
+      <button type="button" class="suggested-question" data-suggested-question="Summarize the uploaded research paper.">Summarize the uploaded research paper.</button>
+      <button type="button" class="suggested-question" data-suggested-question="Create a table of the key methods, data, and findings.">Create a table of the key methods, data, and findings.</button>
+      <button type="button" class="suggested-question" data-suggested-question="List and explain the formulas explicitly shown in the paper.">List and explain the formulas explicitly shown in the paper.</button>
+      {% if conversation.workspace.documents.count > 1 %}
+        <button type="button" class="suggested-question" data-suggested-question="Compare the uploaded papers by objective, method, data, and results.">Compare the uploaded papers.</button>
+      {% endif %}
+    </div>
   </aside>
 
   <section class="chat-panel">
@@ -30,11 +44,16 @@
           <span data-sidebar-toggle-label>Hide documents</span>
         </button>
         <div>
-          <span class="eyebrow">Research conversation</span>
+          <span class="eyebrow">Private research workspace</span>
           <h1>{{ conversation.title }}</h1>
         </div>
       </div>
-      <a class="button button-secondary button-small" href="{% url 'conversation-export-pdf' conversation.id %}">Download PDF</a>
+      <a
+        class="button button-secondary button-small"
+        href="{% url 'conversation-export-pdf' conversation.id %}"
+        data-export-link
+        {% if not messages_list %}hidden{% endif %}
+      >Download PDF</a>
     </div>
 
     <div class="message-stream" data-message-stream>
@@ -58,35 +77,36 @@
           {% endif %}
         </article>
       {% empty %}
-        <div class="chat-empty">
+        <div class="chat-empty" data-chat-empty>
           <span class="brand-mark large">S</span>
-          <h2>Ask a question across your papers</h2>
-          <p>ScholarSync retrieves evidence first and answers only from the selected research material.</p>
+          <h2>Ask across your uploaded papers</h2>
+          <p>ScholarSync retrieves evidence first, answers from your private library, and shows the exact document pages used.</p>
         </div>
       {% endfor %}
     </div>
 
-    <form method="post" class="composer" data-question-composer>
+    <form method="post" class="composer" data-question-composer data-chat-form>
       {% csrf_token %}
       {{ form.question }}
-      <button class="button" type="submit">Ask ScholarSync</button>
+      <button class="button" type="submit" data-submit-button>Ask ScholarSync</button>
     </form>
   </section>
 
   <aside class="evidence-panel">
     <span class="eyebrow">Evidence viewer</span>
-    <h2>Source passages</h2>
-    {% for message in messages_list %}
-      {% for citation in message.citations.all %}
+    <h2>Retrieved sources</h2>
+    <div data-evidence-list>
+      {% for citation in latest_citations %}
         <article class="evidence-card">
-          <div><span>[{{ citation.citation_number }}]</span><b>{{ citation.document.display_title }}</b></div>
-          <p>{{ citation.quoted_passage|truncatechars:360 }}</p>
+          <div><span>[{{ citation.citation_number }}]</span><b>Page {{ citation.page_number }}</b></div>
+          <p>{{ citation.quoted_passage|truncatechars:520 }}</p>
           <a href="{% url 'document-view' citation.document.id %}#page={{ citation.page_number }}" target="_blank" rel="noopener">Open page {{ citation.page_number }} →</a>
+          <small>{{ citation.document.display_title }} · retrieval score {{ citation.retrieval_score|floatformat:3 }}</small>
         </article>
+      {% empty %}
+        <p class="muted" data-evidence-empty>Supporting passages will appear after your first grounded answer.</p>
       {% endfor %}
-    {% empty %}
-      <p class="muted">Supporting passages will appear here after an answer.</p>
-    {% endfor %}
+    </div>
   </aside>
 </section>
 {% endblock %}

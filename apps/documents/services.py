@@ -15,6 +15,9 @@ def index_document(document: Document, pdf_bytes: bytes) -> Document:
         document.page_count = pdf.page_count
         document.processing_status = Document.Status.CHUNKING
         document.save(update_fields=["page_count", "processing_status"])
+        # Re-indexing must replace the old chunk set; otherwise a changed
+        # chunking strategy leaves stale and duplicate passages searchable.
+        document.chunks.all().delete()
         pending = []
         for page_idx in range(pdf.page_count):
             text = pdf.load_page(page_idx).get_text("text")
