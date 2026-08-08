@@ -1,7 +1,10 @@
 import logging
 import re
 import time
+from urllib.parse import urlencode
+from uuid import UUID
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import HttpResponse, JsonResponse
@@ -81,13 +84,59 @@ def conversation_new(request, workspace_id):
 
 
 @login_required
+def conversation_compare_new(request, workspace_id):
+    workspace = get_object_or_404(Workspace, id=workspace_id, owner=request.user)
+    if request.method != "POST":
+        return redirect("workspace-detail", workspace_id=workspace.id)
+
+    selected_ids = []
+    for value in request.POST.getlist("documents"):
+        try:
+            selected_ids.append(UUID(str(value)))
+        except (TypeError, ValueError, AttributeError):
+            continue
+
+    documents = list(
+        workspace.documents.filter(
+            owner=request.user,
+            processing_status="READY",
+            id__in=selected_ids,
+        ).order_by("uploaded_at")
+    )
+
+    if len(documents) < 2:
+        messages.error(request, "Select at least two ready papers to compare.")
+        return redirect("workspace-detail", workspace_id=workspace.id)
+
+    quoted_titles = "; ".join(f'"{document.display_title}"' for document in documents)
+    question = (
+        f"Compare these uploaded papers: {quoted_titles}. "
+        "Compare their objective, methodology, data or criteria, main findings, and limitations. "
+        "Keep the papers distinct and cite every factual comparison."
+    )
+    conversation = Conversation.objects.create(
+        workspace=workspace,
+        owner=request.user,
+        title="Paper comparison",
+    )
+    query = urlencode({"question": question})
+    return redirect(f"{reverse('conversation-detail', args=[conversation.id])}?{query}")
+
+
+@login_required
 def conversation_detail(request, conversation_id):
     conversation = get_object_or_404(
         Conversation.objects.select_related("workspace"),
         id=conversation_id,
         owner=request.user,
     )
-    form = QuestionForm(request.POST or None)
+    initial_question = ""
+    if request.method == "GET" and not conversation.messages.exists():
+        initial_question = request.GET.get("question", "").strip()[:2000]
+    form = QuestionForm(
+        request.POST or None,
+        initial={"question": initial_question} if initial_question else None,
+    )
 
     if request.method == "POST":
         if not form.is_valid():

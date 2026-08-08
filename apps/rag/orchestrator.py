@@ -168,6 +168,10 @@ def _intent_for(question):
     return "general"
 
 
+def _should_route_inventory(question):
+    return _intent_for(question) == "general" and _is_inventory_question(question)
+
+
 def _history_rows(history):
     rows = []
     for row in history or []:
@@ -646,7 +650,7 @@ def answer_workspace_question(question, chunks, history=None, documents=None):
     history = _history_rows(history)
     workspace_documents = _workspace_documents(chunk_list, documents=documents)
 
-    if _is_inventory_question(question):
+    if _should_route_inventory(question):
         return {
             "answer": _inventory_answer(workspace_documents),
             "confidence": "high",

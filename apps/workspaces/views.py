@@ -20,8 +20,13 @@ def workspace_create(request):
 @login_required
 def workspace_detail(request, workspace_id):
     workspace = get_object_or_404(Workspace, id=workspace_id, owner=request.user)
+    documents = list(workspace.documents.order_by("-uploaded_at"))
+    ready_documents = [
+        document for document in documents if document.processing_status == "READY"
+    ]
     return render(request, "workspaces/detail.html", {
         "workspace": workspace,
-        "documents": workspace.documents.order_by("-uploaded_at"),
+        "documents": documents,
+        "ready_documents": ready_documents,
         "conversations": workspace.conversations.order_by("-updated_at")[:8],
     })

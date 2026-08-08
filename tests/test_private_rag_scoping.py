@@ -8,6 +8,7 @@ from apps.rag.orchestrator import (
     _match_documents,
     _formula_core_hits,
     _retrieve,
+    _should_route_inventory,
 )
 
 
@@ -43,6 +44,17 @@ class PrivateWorkspaceScopingTests(SimpleTestCase):
     def test_all_three_phrase_selects_workspace_scope(self):
         self.assertTrue(_asks_for_all_documents("compare all the 3 papers"))
         self.assertTrue(_asks_for_all_documents("compare all three papers"))
+
+    def test_comparison_prompt_is_not_misrouted_as_inventory(self):
+        question = (
+            'Compare these uploaded papers: "2.16_Egypt_GIS_AHP"; '
+            '"3.40_Brazil_AHP_TOPSIS_2020". Compare their objective, '
+            'methodology, data or criteria, main findings, and limitations.'
+        )
+        self.assertFalse(_should_route_inventory(question))
+
+    def test_plain_uploaded_pdf_inventory_question_still_routes_to_inventory(self):
+        self.assertTrue(_should_route_inventory("which uploaded PDFs do I have?"))
 
     def test_formula_followup_uses_only_latest_meaningful_user_turn(self):
         history = [

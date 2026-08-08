@@ -67,8 +67,12 @@ MODE_INSTRUCTIONS = {
         "Do not use HTML tags inside table cells. Include only fields actually supported by the uploaded documents."
     ),
     "workspace-comparison": (
-        "Compare only the uploaded documents or concepts represented in the supplied evidence. Use a valid Markdown table when it improves clarity. "
-        "Keep one row per represented document or approach, cite every row, and do not invent a missing comparison dimension. Verify that citations in each row come from that same document."
+        "Compare only the uploaded documents represented in the supplied evidence. Produce a comparison matrix on the first response: "
+        "use columns for the selected documents and rows for Objective, Methodology, Data or criteria, Main findings, and Limitations. "
+        "If a dimension is not supported for a document, write 'Not explicitly stated in the supplied evidence' instead of guessing. "
+        "Cite every populated factual cell with the exact source block that supports that document. "
+        "After the table, add 2-4 concise key differences only when the supplied evidence supports them. "
+        "Never replace the requested comparison with a list of excerpts."
     ),
     "workspace-summary": (
         "Summarize the uploaded material around its objective, method, data or criteria, main findings, and limitations when supported. "
@@ -501,6 +505,311 @@ def _comparison_fallback(question, hits):
     return "\n".join(lines)
 
 
+_WORKSPACE_COMPARISON_ASPECTS = (
+    (
+        "Objective",
+        (
+            "aim", "objective", "purpose", "goal", "propose", "proposes",
+            "proposed", "seek", "seeks",
+        ),
+    ),
+    (
+        "Methodology",
+        (
+            "methodology", "workflow", "gis", "ahp", "topsis",
+            "weighted overlay", "pairwise comparison", "fuzzy ahp",
+            "integrates", "combines",
+        ),
+    ),
+    (
+        "Data / criteria",
+        (
+            "criteria", "criterion", "dataset", "data", "layer",
+            "thematic map", "solar radiation", "irradiation", "temperature",
+            "slope", "distance to", "land use", "elevation", "ghi",
+        ),
+    ),
+    (
+        "Main findings",
+        (
+            "result", "finding", "found", "identified", "suitable",
+            "suitability", "potential", "area", "capacity", "gw",
+            "concentrated", "classified", "class",
+        ),
+    ),
+    (
+        "Limitations",
+        (
+            "limitation", "limitations", "constraint", "constraints",
+            "not considered", "not included", "have not included",
+            "did not consider", "excluded", "future work",
+            "further research", "uncertainty",
+        ),
+    ),
+)
+
+_COMPARISON_BACKGROUND_PHRASES = (
+    "previous studies",
+    "prior studies",
+    "state of the art",
+    "have been widely used",
+    "has been widely used",
+    "literature review",
+)
+
+
+def _comparison_document_title(hit):
+    return str(
+        getattr(
+            getattr(hit.item, "document", None),
+            "display_title",
+            getattr(hit.item, "source", "Document"),
+        )
+        or "Document"
+    )
+
+
+def _comparison_sentence_is_bibliographic_noise(sentence):
+    lower = str(sentence or "").lower()
+    return any(
+        marker in lower
+        for marker in (
+            "doi.org/",
+            "original contribution",
+            "corresponding author",
+            "received:",
+            "accepted:",
+            "published online",
+        )
+    )
+
+
+def _sanitize_comparison_sentence(sentence):
+    value = re.sub(r"\s+", " ", str(sentence or "")).strip(" •\t\n")
+
+    if "@" in value:
+        value = re.split(
+            r",?\s+as\s+\*?\s*[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3}\s+",
+            value,
+            maxsplit=1,
+        )[0].strip(" ,;:")
+        if "@" in value:
+            value = value.split("@", 1)[0]
+            value = value.rsplit(" ", 1)[0].strip(" ,;:")
+
+    for marker in (
+        " Department of ",
+        " School of ",
+        " Institute of ",
+        " University, ",
+    ):
+        position = value.lower().find(marker.lower())
+        if position >= 45:
+            value = value[:position].strip(" ,;:")
+
+    return value
+
+
+def _comparison_sentences(hits):
+    grouped = {}
+    for source_number, hit in enumerate(hits, 1):
+        title = _comparison_document_title(hit)
+        grouped.setdefault(title, [])
+        content = re.sub(r"\s+", " ", getattr(hit.item, "content", "")).strip()
+        if not content:
+            continue
+
+        sentences = SENTENCE_SPLIT_RE.split(content)
+        if len(sentences) == 1 and 45 <= len(content) <= 520:
+            sentences = [content]
+
+        for sentence in sentences:
+            sentence = _sanitize_comparison_sentence(sentence)
+            if len(sentence) < 45 or len(sentence) > 520:
+                continue
+            if _comparison_sentence_is_bibliographic_noise(sentence):
+                continue
+            grouped[title].append((source_number, sentence))
+    return grouped
+
+
+def _comparison_aspect_cell(candidates, aspect, keywords):
+    best = None
+    for source_number, sentence in candidates:
+        lower = sentence.lower()
+        matches = sum(1 for keyword in keywords if keyword in lower)
+
+        # Objective and limitation rows must be explicit. Broad verbs such as
+        # "investigated" or nouns such as "lack" previously caused unrelated
+        # evidence to be mislabeled as an objective/limitation.
+        if aspect == "Objective":
+            objective_signal = bool(
+                re.search(
+                    r"\b(?:aim|objective|purpose|goal)\b",
+                    lower,
+                )
+                or re.search(
+                    r"\b(?:this|the)\s+(?:study|paper|research|work|article)\s+"
+                    r"(?:aims?|seeks?|proposes?|develops?|presents?|investigates?|"
+                    r"evaluates?|assesses?|identifies?|determines?)\b",
+                    lower,
+                )
+                or re.search(
+                    r"\b(?:we|the authors?)\s+"
+                    r"(?:aim|seek|propose|develop|present|investigate|evaluate|"
+                    r"assess|identify|determine)\b",
+                    lower,
+                )
+                or re.search(
+                    r"\bproposes?\s+(?:a|an|the)\s+"
+                    r"(?:model|framework|method|approach|methodology|system)\b",
+                    lower,
+                )
+                or re.search(
+                    r"\bin\s+this\s+(?:paper|study|research|work)\b.{0,120}"
+                    r"\b(?:identify|determine|evaluate|assess|investigate|locate|select)\w*\b",
+                    lower,
+                )
+            )
+            objective_noise = bool(
+                re.search(r"\bsection\s+\d+\s+(?:presents?|describes?|shows?)\b", lower)
+                or "strategic plan" in lower
+                or "proposed areas" in lower
+                or "proposed modeling" in lower
+                or "policy" in lower
+                or re.search(
+                    r"\bgovernment\b.{0,120}\b(?:aim|target|goal)\b",
+                    lower,
+                )
+            )
+            if not objective_signal or objective_noise:
+                continue
+        elif aspect == "Limitations":
+            if not any(keyword in lower for keyword in keywords):
+                continue
+
+        # Data/criteria needs either an explicit criteria/data construction or
+        # multiple concrete data-layer signals; a literature sentence merely
+        # mentioning "criteria" is not enough.
+        if aspect == "Data / criteria":
+            explicit_data_phrase = bool(
+                re.search(
+                    r"\b(?:criteria|factors|data|datasets?)\s+"
+                    r"(?:include|includes|included|used|consist|consists|were|are)\b",
+                    lower,
+                )
+            )
+            if not explicit_data_phrase and matches < 2:
+                continue
+        elif matches <= 0:
+            continue
+
+        if aspect == "Main findings":
+            finding_specific = bool(
+                re.search(
+                    r"\b(?:results?|findings?|found|identified|suitable|"
+                    r"suitability|excellent|inadequate|ranked|selected|"
+                    r"concentrated|potential\s+(?:area|capacity)|"
+                    r"highly\s+suitable|moderately\s+suitable)\b",
+                    lower,
+                )
+            )
+            background_stat = bool(
+                re.search(
+                    r"\b(?:world|global)\b.{0,80}\b(?:generation|capacity|renewable)\b",
+                    lower,
+                )
+                or re.search(r"\bincreased\s+from\s+\d", lower)
+            )
+            if not finding_specific or background_stat:
+                continue
+
+        score = float(matches)
+        if 70 <= len(sentence) <= 360:
+            score += 0.2
+
+        # Literature-review/background prose should not outrank paper-specific
+        # evidence for comparison cells.
+        if aspect != "Limitations" and any(
+            phrase in lower for phrase in _COMPARISON_BACKGROUND_PHRASES
+        ):
+            score -= 3.0
+
+        # Methodology must describe an actual workflow/tool combination rather
+        # than merely define MCDM in general.
+        if aspect == "Methodology":
+            method_specific = bool(
+                re.search(
+                    r"\b(?:gis|ahp|topsis|workflow|weighted overlay|"
+                    r"pairwise comparison|fuzzy ahp|integrates?|combines?|"
+                    r"processed|processing|weighted|ranking|interpolation)\b",
+                    lower,
+                )
+            )
+            method_action = bool(
+                re.search(
+                    r"\b(?:using|used|processed|weighted|combined|ranking|"
+                    r"interpolat|analysis|workflow|integrates?|combines?)\w*\b",
+                    lower,
+                )
+            )
+            if not method_specific or not method_action:
+                continue
+
+        if score <= 0:
+            continue
+        if best is None or score > best[0]:
+            best = (score, source_number, sentence)
+
+    if best is None:
+        return "Not explicitly stated in the supplied evidence"
+
+    _, source_number, sentence = best
+    if len(sentence) > 320:
+        sentence = sentence[:320].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+    safe = sentence.replace("|", r"\|")
+    return f"{safe} [{source_number}]"
+
+
+def _workspace_comparison_fallback(hits):
+    """Build a real comparison matrix even when model synthesis is unavailable."""
+    grouped = _comparison_sentences(hits)
+    # Keep every represented document in the comparison, even when all of its
+    # retrieved sentences were rejected as noisy metadata/background text.
+    # In that case its cells should say "Not explicitly stated..." rather than
+    # collapsing the whole comparison to fewer than two papers.
+    titles = list(grouped.keys())
+    if len(titles) < 2:
+        return (
+            "I could not build a document comparison because the retrieved "
+            "evidence represents fewer than two uploaded papers."
+        )
+
+    safe_titles = [title.replace("|", r"\|") for title in titles]
+    lines = [
+        "## Grounded comparison",
+        "",
+        "| Aspect | " + " | ".join(safe_titles) + " |",
+        "|---|" + "|".join("---" for _ in safe_titles) + "|",
+    ]
+
+    for aspect, keywords in _WORKSPACE_COMPARISON_ASPECTS:
+        cells = [
+            _comparison_aspect_cell(grouped[title], aspect, keywords)
+            for title in titles
+        ]
+        lines.append("| " + aspect + " | " + " | ".join(cells) + " |")
+
+    lines.extend(
+        [
+            "",
+            "*This comparison uses only the retrieved passages. Unsupported "
+            "dimensions are marked explicitly rather than inferred.*",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def _document_balanced_summary_fallback(hits):
     """Return one grounded overview item per represented uploaded document."""
     grouped = {}
@@ -566,8 +875,10 @@ def _document_balanced_table_fallback(hits):
 def _extractive_answer(question, hits, answer_mode="general"):
     if answer_mode in {"formula", "workspace-formula"}:
         return _formula_fallback(hits)
-    if answer_mode in {"comparison", "workspace-comparison"}:
+    if answer_mode == "comparison":
         return _comparison_fallback(question, hits)
+    if answer_mode == "workspace-comparison":
+        return _workspace_comparison_fallback(hits)
     if answer_mode == "workspace-summary":
         return _document_balanced_summary_fallback(hits)
     if answer_mode == "workspace-table":
@@ -844,6 +1155,48 @@ def _valid_three_paper_comparison(text):
     return rows == 3
 
 
+def _valid_workspace_comparison(text):
+    """Require a comparison table with multiple meaningful comparison dimensions."""
+    if not text:
+        return False
+
+    lines = [line.strip() for line in str(text).splitlines()]
+    divider_index = None
+    for index, line in enumerate(lines):
+        if index == 0 or "|" not in line:
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) >= 3 and all(
+            re.fullmatch(r":?-{3,}:?", cell or "")
+            for cell in cells
+        ):
+            divider_index = index
+            break
+
+    if divider_index is None:
+        return False
+
+    data_rows = []
+    for line in lines[divider_index + 1:]:
+        if not line or "|" not in line:
+            break
+        data_rows.append(line.lower())
+
+    if len(data_rows) < 2:
+        return False
+
+    comparison_terms = (
+        "objective", "method", "methodology", "data", "criteria",
+        "finding", "result", "limitation", "region", "output", "potential",
+    )
+    represented_dimensions = sum(
+        1
+        for term in comparison_terms
+        if any(term in row for row in data_rows)
+    )
+    return represented_dimensions >= 2
+
+
 def _response_schema():
     return {
         "type": "json_schema",
@@ -1115,6 +1468,19 @@ def generate_answer(question, hits, conversation_context=None, answer_mode="gene
                 if answer_mode == "comparison" and answer and not _valid_three_paper_comparison(answer):
                     logger.warning(
                         "Groq comparison did not contain exactly three paper rows; retrying "
+                        "(attempt=%s, structured=%s).",
+                        attempt_index,
+                        structured,
+                    )
+                    continue
+
+                if (
+                    answer_mode == "workspace-comparison"
+                    and answer
+                    and not _valid_workspace_comparison(answer)
+                ):
+                    logger.warning(
+                        "Groq workspace comparison was not a structured comparison table; retrying "
                         "(attempt=%s, structured=%s).",
                         attempt_index,
                         structured,
