@@ -1,3 +1,5 @@
+import json
+
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -216,3 +218,42 @@ class GroundedAnswerStabilityTests(SimpleTestCase):
         )
 
         self.assertEqual(payload["max_completion_tokens"], 2200)
+    @override_settings(GROQ_API_KEY="fake", GROQ_MODEL="test-model")
+    def test_workspace_general_citation_miss_does_not_regenerate_full_answer(self):
+        response = httpx.Response(
+            200,
+            headers={"x-request-id": "req-no-citations"},
+        )
+        data = {
+            "id": "resp-no-citations",
+            "model": "test-model",
+        }
+        content = json.dumps(
+            {
+                "answer_markdown": (
+                    "The paper uses GIS with AHP weighting and TOPSIS ranking."
+                ),
+                "used_sources": [],
+                "evidence_sufficient": True,
+            }
+        )
+
+        with (
+            patch(
+                "apps.rag.generator._call_groq",
+                return_value=(response, data, content),
+            ) as call,
+            patch("apps.rag.generator.time.sleep") as sleep,
+        ):
+            answer, confidence, model = generate_answer(
+                "What methodology does the Brazil paper use?",
+                self.hits,
+                conversation_context=[],
+                answer_mode="workspace-general",
+            )
+
+        self.assertEqual(call.call_count, 1)
+        sleep.assert_not_called()
+        self.assertEqual(model, "retrieval-only")
+        self.assertEqual(confidence, "medium")
+        self.assertIn("Methodology supported by the paper", answer)

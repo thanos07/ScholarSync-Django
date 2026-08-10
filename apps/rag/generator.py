@@ -1962,6 +1962,15 @@ def generate_answer(question, hits, conversation_context=None, answer_mode="gene
                     # answer. A sufficient grounded answer must identify the
                     # exact source numbers it used. If it does not, retry.
                     if sufficient and not cited and not insufficient:
+                        if answer_mode == "workspace-general":
+                            logger.warning(
+                                "Groq workspace answer had no usable citations; "
+                                "using retrieval fallback instead of regenerating "
+                                "the full answer (attempt=%s, structured=%s).",
+                                attempt_index,
+                                structured,
+                            )
+                            break
                         logger.warning(
                             "Groq answer had no usable citations; retrying "
                             "(attempt=%s, structured=%s).",
