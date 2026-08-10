@@ -7,7 +7,7 @@ from .generator import generate_answer
 
 REFERENTIAL_TERMS = {
     "it", "its", "this", "that", "they", "them", "their", "these",
-    "those", "former", "latter", "above", "previous", "same", "here",
+    "those", "former", "latter", "above", "previous", "same", "here", "then",
 }
 
 ACKNOWLEDGEMENTS = {
@@ -274,6 +274,23 @@ def _asks_for_all_documents(question):
     ))
 
 
+def _needs_recent_document_context(question):
+    normalized = _normalize_question(question)
+    terms = [term for term in normalized.split() if term]
+    return bool(set(terms) & REFERENTIAL_TERMS) or len(terms) <= 8
+
+
+def _recent_history_documents(history, documents):
+    """Resolve a short follow-up to the most recent explicitly named paper."""
+    for row in reversed(_history_rows(history)):
+        if row["role"] != "USER":
+            continue
+        matches = _match_documents(row["content"], documents)
+        if matches:
+            return matches
+    return []
+
+
 def _intent_queries(question, contextual_question, intent):
     queries = [contextual_question]
     if question.strip() != contextual_question.strip():
@@ -301,7 +318,46 @@ def _intent_queries(question, contextual_question, intent):
             f"{contextual_question} contribution findings limitations",
         ])
     else:
-        queries.append(f"{contextual_question} definition method result")
+        normalized_question = f" {_normalize_question(question)} "
+        if (
+            " state of the art " in normalized_question
+            or " state of art " in normalized_question
+            or " literature review " in normalized_question
+            or " related work " in normalized_question
+            or " previous studies " in normalized_question
+            or " prior studies " in normalized_question
+            or " studies mentioned " in normalized_question
+            or " studies cited " in normalized_question
+            or " papers mentioned " in normalized_question
+            or " papers cited " in normalized_question
+            or re.search(r"\bsection\s*2\b", normalized_question)
+        ):
+            queries.extend(
+                [
+                    f"{contextual_question} state of the art previous studies GIS MCDM solar site selection",
+                    f"{contextual_question} prior studies AHP TOPSIS ANP VIKOR ELECTRE GIS MCDM",
+                    f"{contextual_question} Tanzania Saudi Arabia Serbia Turkey Spain Mauritius Morocco Brazil solar location",
+                ]
+            )
+        elif any(
+            term in normalized_question
+            for term in (
+                " methodology ",
+                " method ",
+                " methods ",
+                " approach ",
+                " workflow ",
+            )
+        ):
+            queries.extend(
+                [
+                    f"{contextual_question} methodology workflow GIS MCDM MCDA AHP TOPSIS MAUT weighted overlay",
+                    f"{contextual_question} weighting ranking sensitivity analysis implementation software criteria",
+                    f"{contextual_question} proposed methodology method procedure",
+                ]
+            )
+        else:
+            queries.append(f"{contextual_question} definition method result")
 
     unique = []
     seen = set()
@@ -686,6 +742,8 @@ def answer_workspace_question(question, chunks, history=None, documents=None):
     target_documents = _match_documents(question, workspace_documents)
     if not target_documents and contextual != question:
         target_documents = _match_documents(contextual, workspace_documents)
+    if not target_documents and _needs_recent_document_context(question):
+        target_documents = _recent_history_documents(history, workspace_documents)
 
     if _asks_for_all_documents(question):
         target_documents = list(workspace_documents)
@@ -742,10 +800,14 @@ def answer_workspace_question(question, chunks, history=None, documents=None):
         "general": "workspace-general",
     }[intent]
 
+    # Standalone questions should not change meaning merely because the same
+    # question was asked earlier. Only pass conversation history when the
+    # current turn genuinely required context resolution.
+    generation_context = history[-6:] if contextual != question else []
     answer, confidence, model = generate_answer(
         question,
         hits,
-        conversation_context=history[-6:],
+        conversation_context=generation_context,
         answer_mode=answer_mode,
     )
     return {
