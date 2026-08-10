@@ -80,7 +80,9 @@ MODE_INSTRUCTIONS = {
     ),
     "workspace-general": (
         "Answer the current question only from the uploaded documents. Define abbreviations from the evidence, distinguish facts from interpretation, "
-        "and avoid adding standard domain knowledge that is not visible in the supplied passages."
+        "and avoid adding standard domain knowledge that is not visible in the supplied passages. "
+        "Keep source markers attached to the factual claims they support. Do not append a separate Sources, References, Evidence used, or citation-summary "
+        "section; ScholarSync renders the source list separately."
     ),
     "general": "Answer only the requested topic and omit unrelated experimental details.",
 }
@@ -1355,14 +1357,29 @@ def _extractive_answer(question, hits, answer_mode="general"):
     return "\n".join(lines)
 
 
-def _clean_answer_markdown(text):
+def _clean_answer_markdown(text, *, strip_source_appendix=False):
     if not text:
         return ""
     value = _normalize_html_math(text)
+    lines = value.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     cleaned = []
-    for line in value.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+    for index, line in enumerate(lines):
         stripped = line.strip()
         label = re.sub(r"^#{1,6}\s*", "", stripped).strip()
+
+        # Workspace pages already render a canonical evidence/source panel.
+        # If a model nevertheless appends its own trailing Sources/References
+        # summary, remove only that appendix. Require citation markers in the
+        # tail so an ordinary prose heading is not removed accidentally.
+        if (
+            strip_source_appendix
+            and cleaned
+            and re.fullmatch(r"(?:sources?|references?)\s*:?", label, re.I)
+        ):
+            tail = lines[index + 1:]
+            if any(re.search(r"\[\s*\d+\s*\]", tail_line) for tail_line in tail):
+                break
+
         if re.match(
             r"^(?:evidence sufficient|evidence_sufficient|evidence used|"
             r"evidence sources|used evidence|citation map|source map)"
@@ -1381,6 +1398,36 @@ def _clean_answer_markdown(text):
             continue
         cleaned.append(line.rstrip())
     return "\n".join(cleaned).strip()
+
+
+def _should_strip_model_source_appendix(question, answer_mode):
+    """Avoid duplicate source appendices while preserving source-list questions."""
+    if answer_mode not in {
+        "workspace-general",
+        "workspace-summary",
+        "workspace-table",
+        "workspace-comparison",
+    }:
+        return False
+
+    normalized = re.sub(r"[^a-z0-9]+", " ", str(question or "").lower()).strip()
+    padded = f" {normalized} "
+    source_listing_terms = (
+        " source ",
+        " sources ",
+        " reference ",
+        " references ",
+        " bibliography ",
+        " literature review ",
+        " related work ",
+        " state of the art ",
+        " state of art ",
+        " studies mentioned ",
+        " studies cited ",
+        " papers mentioned ",
+        " papers cited ",
+    )
+    return not any(term in padded for term in source_listing_terms)
 
 
 def _normalize_formula_latex(expression):
@@ -1836,6 +1883,11 @@ def _formula_answer_covers_evidence(answer, hits):
 
 
 def generate_answer(question, hits, conversation_context=None, answer_mode="general"):
+    strip_source_appendix = _should_strip_model_source_appendix(
+        question,
+        answer_mode,
+    )
+
     if not hits:
         return (
             "I could not find enough relevant evidence in the selected documents to answer that question.",
@@ -1847,7 +1899,10 @@ def generate_answer(question, hits, conversation_context=None, answer_mode="gene
     if formula_cache_key:
         cached = cache.get(formula_cache_key)
         if isinstance(cached, dict) and cached.get("answer"):
-            cached_answer = _clean_answer_markdown(cached["answer"])
+            cached_answer = _clean_answer_markdown(
+                cached["answer"],
+                strip_source_appendix=strip_source_appendix,
+            )
             cached_answer = _normalize_formula_answer_markdown(cached_answer)
             if _formula_answer_covers_evidence(cached_answer, hits):
                 return (
@@ -1867,7 +1922,10 @@ def generate_answer(question, hits, conversation_context=None, answer_mode="gene
         cached = cache.get(grounded_cache_key)
         if isinstance(cached, dict) and cached.get("answer"):
             return (
-                _clean_answer_markdown(cached["answer"]),
+                _clean_answer_markdown(
+                    cached["answer"],
+                    strip_source_appendix=strip_source_appendix,
+                ),
                 cached.get("confidence", "high"),
                 cached.get("model", "grounded-cache"),
             )
@@ -1914,7 +1972,10 @@ def generate_answer(question, hits, conversation_context=None, answer_mode="gene
                     )
                 )
                 answer, used_sources, sufficient = _parse_model_content(content)
-                answer = _clean_answer_markdown(answer)
+                answer = _clean_answer_markdown(
+                    answer,
+                    strip_source_appendix=strip_source_appendix,
+                )
                 if answer_mode in {"formula", "workspace-formula"}:
                     answer = _normalize_formula_answer_markdown(answer)
                 answer = _normalize_citations(answer, len(hits))

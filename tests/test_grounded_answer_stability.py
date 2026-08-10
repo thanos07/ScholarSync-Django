@@ -9,10 +9,12 @@ from django.core.cache import cache
 from django.test import SimpleTestCase, override_settings
 
 from apps.rag.generator import (
+    _clean_answer_markdown,
     _grounded_answer_cache_key,
     _parse_model_content,
     _request_payload,
     _response_schema,
+    _should_strip_model_source_appendix,
     generate_answer,
 )
 
@@ -328,3 +330,73 @@ class GroundedAnswerStabilityTests(SimpleTestCase):
         _answer, used, _sufficient = _parse_model_content(content)
 
         self.assertEqual(used, [2, 4])
+    def test_clean_answer_strips_trailing_model_sources_appendix(self):
+        answer = (
+            "The Brazil study uses GIS-MCDM with AHP and TOPSIS. [2]\n\n"
+            "## Sources\n"
+            "- AHP weighting and TOPSIS ranking are described here. [5][6]\n"
+            "- The overall GIS-MCDM workflow is described here. [2]"
+        )
+
+        cleaned = _clean_answer_markdown(
+            answer,
+            strip_source_appendix=True,
+        )
+
+        self.assertEqual(
+            cleaned,
+            "The Brazil study uses GIS-MCDM with AHP and TOPSIS. [2]",
+        )
+
+    def test_clean_answer_does_not_strip_data_sources_heading(self):
+        answer = (
+            "## Data sources\n"
+            "The study uses spatial criteria from the supplied datasets. [1]"
+        )
+
+        cleaned = _clean_answer_markdown(
+            answer,
+            strip_source_appendix=True,
+        )
+
+        self.assertEqual(cleaned, answer)
+
+    def test_source_listing_questions_preserve_model_source_content(self):
+        self.assertFalse(
+            _should_strip_model_source_appendix(
+                "What sources and references are discussed in the Brazil paper?",
+                "workspace-general",
+            )
+        )
+        self.assertFalse(
+            _should_strip_model_source_appendix(
+                "What are the other studies mentioned in the Brazil paper?",
+                "workspace-general",
+            )
+        )
+        self.assertTrue(
+            _should_strip_model_source_appendix(
+                "What methodology does the Brazil paper use?",
+                "workspace-general",
+            )
+        )
+
+    @override_settings(GROQ_MODEL="test-model")
+    def test_workspace_general_prompt_forbids_duplicate_source_appendix(self):
+        payload = _request_payload(
+            "What methodology does the Brazil paper use?",
+            self.hits,
+            [],
+            "workspace-general",
+            structured=True,
+        )
+
+        prompt = payload["messages"][1]["content"]
+        self.assertIn(
+            "Do not append a separate Sources, References",
+            prompt,
+        )
+        self.assertIn(
+            "ScholarSync renders the source list separately",
+            prompt,
+        )
