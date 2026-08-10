@@ -10,6 +10,7 @@ from django.test import SimpleTestCase, override_settings
 
 from apps.rag.generator import (
     _clean_answer_markdown,
+    _fold_trailing_citation_paragraph,
     _grounded_answer_cache_key,
     _parse_model_content,
     _request_payload,
@@ -400,3 +401,155 @@ class GroundedAnswerStabilityTests(SimpleTestCase):
             "ScholarSync renders the source list separately",
             prompt,
         )
+    def test_clean_answer_strips_source_appendix_before_citation_normalization(self):
+        answer = (
+            "The Brazil study uses GIS-MCDM with AHP and TOPSIS.\n\n"
+            "## Sources\n"
+            "1. AHP weighting and TOPSIS ranking are described here. [SOURCE 5][SOURCE 6]\n"
+            "1. The overall GIS-MCDM workflow is described here. [SOURCE 2]"
+        )
+
+        cleaned = _clean_answer_markdown(
+            answer,
+            strip_source_appendix=True,
+        )
+
+        self.assertEqual(
+            cleaned,
+            "The Brazil study uses GIS-MCDM with AHP and TOPSIS.",
+        )
+
+    def test_clean_answer_strips_grouped_and_bracket_source_markers(self):
+        grouped = (
+            "Grounded answer.\n\n"
+            "Sources\n"
+            "- Supporting summary [2, 5]"
+        )
+        bracketed = (
+            "Grounded answer.\n\n"
+            "References\n"
+            "- Supporting summary 【5】"
+        )
+
+        self.assertEqual(
+            _clean_answer_markdown(grouped, strip_source_appendix=True),
+            "Grounded answer.",
+        )
+        self.assertEqual(
+            _clean_answer_markdown(bracketed, strip_source_appendix=True),
+            "Grounded answer.",
+        )
+    def test_clean_answer_strips_bold_sources_appendix(self):
+        answer = (
+            "The Brazil study uses GIS-MCDM with AHP and TOPSIS.\n\n"
+            "**Sources**\n"
+            "- AHP weighting and TOPSIS ranking are described here. [5][6]\n"
+            "- The overall GIS-MCDM workflow is described here. [2]"
+        )
+
+        cleaned = _clean_answer_markdown(
+            answer,
+            strip_source_appendix=True,
+        )
+
+        self.assertEqual(
+            cleaned,
+            "The Brazil study uses GIS-MCDM with AHP and TOPSIS.",
+        )
+    @override_settings(GROQ_API_KEY="fake", GROQ_MODEL="test-model")
+    def test_workspace_general_used_sources_attach_to_answer_not_standalone_line(self):
+        response = httpx.Response(
+            200,
+            headers={"x-request-id": "req-valid-used-sources"},
+        )
+        data = {
+            "id": "resp-valid-used-sources",
+            "model": "test-model",
+        }
+        content = json.dumps(
+            {
+                "answer_markdown": (
+                    "The Brazil study uses GIS-MCDM with AHP weighting and "
+                    "TOPSIS ranking."
+                ),
+                "used_sources": {
+                    "source_1": True,
+                },
+                "evidence_sufficient": True,
+            }
+        )
+
+        with patch(
+            "apps.rag.generator._call_groq",
+            return_value=(response, data, content),
+        ) as call:
+            answer, confidence, model = generate_answer(
+                "What methodology does the Brazil paper use?",
+                self.hits,
+                conversation_context=[],
+                answer_mode="workspace-general",
+            )
+
+        self.assertEqual(call.call_count, 1)
+        self.assertEqual(
+            answer,
+            "The Brazil study uses GIS-MCDM with AHP weighting and TOPSIS ranking. [1]",
+        )
+        self.assertNotIn("\\n\\n[1]", answer)
+        self.assertEqual(confidence, "high")
+        self.assertEqual(model, "test-model")
+    def test_fold_trailing_citation_only_paragraph_into_prose(self):
+        answer = (
+            "The Brazil study uses GIS-MCDM with AHP weighting and TOPSIS "
+            "ranking.\n\n[5] [6]"
+        )
+
+        folded = _fold_trailing_citation_paragraph(answer)
+
+        self.assertEqual(
+            folded,
+            "The Brazil study uses GIS-MCDM with AHP weighting and TOPSIS ranking. [5][6]",
+        )
+
+    @override_settings(GROQ_API_KEY="fake", GROQ_MODEL="test-model")
+    def test_workspace_general_model_citation_only_tail_is_folded(self):
+        response = httpx.Response(
+            200,
+            headers={"x-request-id": "req-citation-tail"},
+        )
+        data = {
+            "id": "resp-citation-tail",
+            "model": "test-model",
+        }
+        content = json.dumps(
+            {
+                "answer_markdown": (
+                    "The Brazil study uses GIS-MCDM with AHP weighting and "
+                    "TOPSIS ranking.\n\n[1]"
+                ),
+                "used_sources": {
+                    "source_1": True,
+                },
+                "evidence_sufficient": True,
+            }
+        )
+
+        with patch(
+            "apps.rag.generator._call_groq",
+            return_value=(response, data, content),
+        ) as call:
+            answer, confidence, model = generate_answer(
+                "What methodology does the Brazil paper use?",
+                self.hits,
+                conversation_context=[],
+                answer_mode="workspace-general",
+            )
+
+        self.assertEqual(call.call_count, 1)
+        self.assertEqual(
+            answer,
+            "The Brazil study uses GIS-MCDM with AHP weighting and TOPSIS ranking. [1]",
+        )
+        self.assertNotIn("\n\n[1]", answer)
+        self.assertEqual(confidence, "high")
+        self.assertEqual(model, "test-model")

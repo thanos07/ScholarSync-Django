@@ -299,6 +299,40 @@ def _normalize_citations(text, max_source):
     return SINGLE_CITATION_RE.sub(keep_valid, text).strip()
 
 
+
+def _fold_trailing_citation_paragraph(text):
+    """Attach a citation-only final paragraph to the preceding prose.
+
+    Models sometimes return a good grounded paragraph followed by a separate
+    line such as ``[5] [6]``. Keeping that line separate makes the citations
+    look like a second source block and leaves claim-level verification with no
+    claim text. Preserve the exact source ids but attach them to the preceding
+    prose instead.
+    """
+    value = str(text or "").strip()
+    if not value:
+        return ""
+
+    match = re.search(
+        r"\n\s*\n\s*((?:\[\s*\d+\s*\]\s*)+)\s*$",
+        value,
+    )
+    if not match:
+        return value
+
+    prefix = value[:match.start()].rstrip()
+    if not prefix:
+        return value
+
+    markers = "".join(
+        f"[{number}]"
+        for number in re.findall(r"\[\s*(\d+)\s*\]", match.group(1))
+    )
+    if not markers:
+        return value
+    return f"{prefix} {markers}"
+
+
 def cited_source_numbers(text, max_source):
     numbers = []
     for match in re.finditer(r"\[(\d+)\]", text or ""):
@@ -1366,6 +1400,13 @@ def _clean_answer_markdown(text, *, strip_source_appendix=False):
     for index, line in enumerate(lines):
         stripped = line.strip()
         label = re.sub(r"^#{1,6}\s*", "", stripped).strip()
+        # Models may format section labels with Markdown emphasis rather than
+        # heading syntax, e.g. **Sources** or __References__.
+        label = re.sub(
+            r"^(?:\*{1,3}|_{1,3})\s*(.*?)\s*(?:\*{1,3}|_{1,3})$",
+            r"\1",
+            label,
+        ).strip()
 
         # Workspace pages already render a canonical evidence/source panel.
         # If a model nevertheless appends its own trailing Sources/References
@@ -1377,7 +1418,14 @@ def _clean_answer_markdown(text, *, strip_source_appendix=False):
             and re.fullmatch(r"(?:sources?|references?)\s*:?", label, re.I)
         ):
             tail = lines[index + 1:]
-            if any(re.search(r"\[\s*\d+\s*\]", tail_line) for tail_line in tail):
+            citation_marker_re = re.compile(
+                r"(?:"
+                r"\[\s*(?:SOURCE\s+)?\d+(?:\s*[,;]\s*\d+)*\s*\]"
+                r"|【\s*\d+\s*】"
+                r")",
+                re.I,
+            )
+            if any(citation_marker_re.search(tail_line) for tail_line in tail):
                 break
 
         if re.match(
@@ -1921,11 +1969,15 @@ def generate_answer(question, hits, conversation_context=None, answer_mode="gene
     if grounded_cache_key:
         cached = cache.get(grounded_cache_key)
         if isinstance(cached, dict) and cached.get("answer"):
+            cached_answer = _clean_answer_markdown(
+                cached["answer"],
+                strip_source_appendix=strip_source_appendix,
+            )
+            if answer_mode == "workspace-general":
+                cached_answer = _normalize_citations(cached_answer, len(hits))
+                cached_answer = _fold_trailing_citation_paragraph(cached_answer)
             return (
-                _clean_answer_markdown(
-                    cached["answer"],
-                    strip_source_appendix=strip_source_appendix,
-                ),
+                cached_answer,
                 cached.get("confidence", "high"),
                 cached.get("model", "grounded-cache"),
             )
@@ -1979,6 +2031,8 @@ def generate_answer(question, hits, conversation_context=None, answer_mode="gene
                 if answer_mode in {"formula", "workspace-formula"}:
                     answer = _normalize_formula_answer_markdown(answer)
                 answer = _normalize_citations(answer, len(hits))
+                if answer_mode == "workspace-general":
+                    answer = _fold_trailing_citation_paragraph(answer)
                 used_sources = [n for n in used_sources if 1 <= n <= len(hits)]
 
                 if _has_corrupted_latex(answer):
@@ -2050,7 +2104,16 @@ def generate_answer(question, hits, conversation_context=None, answer_mode="gene
                     cited = cited_source_numbers(answer, len(hits))
                     insufficient = _looks_insufficient(answer) or not sufficient
                     if not cited and used_sources and not insufficient:
-                        answer = f"{answer}\n\n" + "".join(f"[{n}]" for n in used_sources)
+                        source_markers = "".join(f"[{n}]" for n in used_sources)
+                        if answer_mode == "workspace-general":
+                            # Keep fallback source markers attached to the
+                            # synthesized prose. A standalone citation-only
+                            # paragraph looks like a second source block in
+                            # browser/PDF output and weakens claim-level
+                            # verification context.
+                            answer = f"{answer.rstrip()} {source_markers}"
+                        else:
+                            answer = f"{answer}\n\n{source_markers}"
                         cited = used_sources
 
                     # Never attach arbitrary evidence cards to a synthesized
