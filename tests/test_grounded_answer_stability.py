@@ -10,7 +10,9 @@ from django.test import SimpleTestCase, override_settings
 
 from apps.rag.generator import (
     _grounded_answer_cache_key,
+    _parse_model_content,
     _request_payload,
+    _response_schema,
     generate_answer,
 )
 
@@ -257,3 +259,72 @@ class GroundedAnswerStabilityTests(SimpleTestCase):
         self.assertEqual(model, "retrieval-only")
         self.assertEqual(confidence, "medium")
         self.assertIn("Methodology supported by the paper", answer)
+    def test_structured_schema_uses_fixed_boolean_source_slots(self):
+        schema = _response_schema(4)
+        used_sources = (
+            schema["json_schema"]["schema"]["properties"]["used_sources"]
+        )
+        self.assertEqual(used_sources["type"], "object")
+        self.assertEqual(
+            list(used_sources["properties"]),
+            ["source_1", "source_2", "source_3", "source_4"],
+        )
+        self.assertEqual(
+            used_sources["required"],
+            ["source_1", "source_2", "source_3", "source_4"],
+        )
+        self.assertFalse(used_sources["additionalProperties"])
+
+    @override_settings(GROQ_MODEL="test-model")
+    def test_structured_prompt_separates_source_ids_from_bibliography_numbers(self):
+        payload = _request_payload(
+            "What methodology does the Brazil paper use?",
+            self.hits,
+            [],
+            "workspace-general",
+            structured=True,
+        )
+
+        prompt = payload["messages"][1]["content"]
+        self.assertIn("Valid ScholarSync SOURCE ids for this request: 1.", prompt)
+        self.assertIn("Bibliography/reference numbers", prompt)
+        self.assertIn("used_sources is a boolean object", prompt)
+
+        used_sources = (
+            payload["response_format"]["json_schema"]["schema"]["properties"]
+            ["used_sources"]
+        )
+        self.assertEqual(list(used_sources["properties"]), ["source_1"])
+        self.assertEqual(used_sources["required"], ["source_1"])
+    def test_parse_model_content_reads_boolean_source_slots(self):
+        content = json.dumps(
+            {
+                "answer_markdown": "Grounded answer [2][4]",
+                "used_sources": {
+                    "source_1": False,
+                    "source_2": True,
+                    "source_3": False,
+                    "source_4": True,
+                },
+                "evidence_sufficient": True,
+            }
+        )
+
+        answer, used, sufficient = _parse_model_content(content)
+
+        self.assertEqual(answer, "Grounded answer [2][4]")
+        self.assertEqual(used, [2, 4])
+        self.assertTrue(sufficient)
+
+    def test_parse_model_content_keeps_legacy_list_compatibility(self):
+        content = json.dumps(
+            {
+                "answer_markdown": "Legacy answer",
+                "used_sources": [2, 4],
+                "evidence_sufficient": True,
+            }
+        )
+
+        _answer, used, _sufficient = _parse_model_content(content)
+
+        self.assertEqual(used, [2, 4])

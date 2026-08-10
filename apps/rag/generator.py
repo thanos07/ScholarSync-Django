@@ -343,13 +343,30 @@ def _parse_model_content(content):
         return content.strip(), [], True
     answer = str(payload.get("answer_markdown") or payload.get("answer") or "").strip()
     used = []
-    for value in payload.get("used_sources") or []:
-        try:
-            number = int(value)
-        except (TypeError, ValueError):
-            continue
-        if number not in used:
-            used.append(number)
+    raw_used_sources = payload.get("used_sources") or []
+
+    # Structured responses use fixed boolean slots (source_1, source_2, ...)
+    # so bibliography numbers copied from PDF text cannot masquerade as
+    # ScholarSync source ids. Keep list parsing for compatibility with older
+    # cached/test responses.
+    if isinstance(raw_used_sources, dict):
+        for key, enabled in raw_used_sources.items():
+            if not enabled:
+                continue
+            match = re.fullmatch(r"source_(\d+)", str(key), re.I)
+            if not match:
+                continue
+            number = int(match.group(1))
+            if number not in used:
+                used.append(number)
+    else:
+        for value in raw_used_sources:
+            try:
+                number = int(value)
+            except (TypeError, ValueError):
+                continue
+            if number not in used:
+                used.append(number)
     sufficient = bool(payload.get("evidence_sufficient", True))
     return answer, used, sufficient
 
@@ -1625,7 +1642,13 @@ def _valid_workspace_comparison(text):
     return represented_dimensions >= 2
 
 
-def _response_schema():
+def _response_schema(max_source=None):
+    source_count = max(0, int(max_source or 0))
+    source_properties = {
+        f"source_{number}": {"type": "boolean"}
+        for number in range(1, source_count + 1)
+    }
+
     return {
         "type": "json_schema",
         "json_schema": {
@@ -1636,8 +1659,10 @@ def _response_schema():
                 "properties": {
                     "answer_markdown": {"type": "string"},
                     "used_sources": {
-                        "type": "array",
-                        "items": {"type": "integer"},
+                        "type": "object",
+                        "properties": source_properties,
+                        "required": list(source_properties),
+                        "additionalProperties": False,
                     },
                     "evidence_sufficient": {"type": "boolean"},
                 },
@@ -1664,10 +1689,19 @@ def _request_payload(question, hits, conversation_context, answer_mode, *, struc
     else:
         evidence = build_evidence(hits)
 
+    valid_source_ids = ", ".join(str(number) for number in range(1, len(hits) + 1))
     output_instruction = (
         "Return only clean Markdown, not JSON. Preserve every LaTeX backslash exactly and place display equations inside $$...$$."
         if not structured
-        else "Return answer_markdown, the source numbers actually used, and whether the evidence is sufficient. Double-escape every LaTeX backslash inside JSON strings."
+        else (
+            "Return answer_markdown, used_sources, and whether the evidence is sufficient. "
+            f"Valid ScholarSync SOURCE ids for this request: {valid_source_ids}. "
+            "used_sources is a boolean object with keys source_1 through source_N. "
+            "Set a source_N field to true only when that ScholarSync SOURCE block supports the answer; "
+            "set every other source_N field to false. Bibliography/reference numbers printed inside Passage "
+            "text are never ScholarSync source identifiers. Keep factual claims in answer_markdown cited with "
+            "the matching [SOURCE number]. Double-escape every LaTeX backslash inside JSON strings."
+        )
     )
     user_prompt = (
         f"Task guidance: {mode_instruction}\n\n"
@@ -1702,7 +1736,7 @@ def _request_payload(question, hits, conversation_context, answer_mode, *, struc
         ],
     }
     if structured:
-        payload["response_format"] = _response_schema()
+        payload["response_format"] = _response_schema(len(hits))
     return payload
 
 
