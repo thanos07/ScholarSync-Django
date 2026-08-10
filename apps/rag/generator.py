@@ -1973,7 +1973,21 @@ def generate_answer(question, hits, conversation_context=None, answer_mode="gene
                 )
                 if status in {401, 403, 404}:
                     break
-                if status in {408, 409, 425, 429, 500, 502, 503, 504} and attempt_index < len(attempts):
+
+                # A Groq 429 means the current token/rate budget is exhausted.
+                # Retrying the same multi-thousand-token prompt immediately
+                # usually consumes more quota pressure and produces another
+                # 429. Fail over to the deterministic retrieval fallback
+                # instead; the user can retry later once the provider window
+                # has recovered.
+                if status == 429:
+                    logger.warning(
+                        "Groq rate limit reached; skipping further model retries "
+                        "and using retrieval fallback."
+                    )
+                    break
+
+                if status in {408, 409, 425, 500, 502, 503, 504} and attempt_index < len(attempts):
                     time.sleep(_retry_after_seconds(response, 0.8 * attempt_index))
                     continue
             except (httpx.TimeoutException, httpx.NetworkError) as exc:

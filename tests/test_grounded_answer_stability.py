@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import httpx
+
 from django.core.cache import cache
 from django.test import SimpleTestCase, override_settings
 
@@ -101,3 +103,74 @@ class GroundedAnswerStabilityTests(SimpleTestCase):
         self.assertEqual(answer, "Brazil uses GIS, AHP, and TOPSIS. [1]")
         self.assertEqual(confidence, "high")
         self.assertEqual(model, "test-model-cached")
+    @override_settings(GROQ_API_KEY="fake", GROQ_MODEL="test-model")
+    def test_429_stops_after_first_model_attempt_and_uses_fallback(self):
+        request = httpx.Request(
+            "POST",
+            "https://api.groq.com/openai/v1/chat/completions",
+        )
+        response = httpx.Response(
+            429,
+            request=request,
+            headers={"retry-after": "20"},
+            json={
+                "error": {
+                    "message": "Rate limit reached",
+                    "type": "tokens",
+                    "code": "rate_limit_exceeded",
+                }
+            },
+        )
+        error = httpx.HTTPStatusError(
+            "429 Too Many Requests",
+            request=request,
+            response=response,
+        )
+
+        with (
+            patch("apps.rag.generator._call_groq", side_effect=error) as call,
+            patch("apps.rag.generator.time.sleep") as sleep,
+        ):
+            answer, confidence, model = generate_answer(
+                "What methodology does the Brazil paper use?",
+                self.hits,
+                conversation_context=[],
+                answer_mode="workspace-general",
+            )
+
+        self.assertEqual(call.call_count, 1)
+        sleep.assert_not_called()
+        self.assertEqual(model, "retrieval-only")
+        self.assertEqual(confidence, "medium")
+        self.assertIn("Methodology supported by the paper", answer)
+
+    @override_settings(GROQ_API_KEY="fake", GROQ_MODEL="test-model")
+    def test_transient_503_still_retries(self):
+        request = httpx.Request(
+            "POST",
+            "https://api.groq.com/openai/v1/chat/completions",
+        )
+        response = httpx.Response(
+            503,
+            request=request,
+            json={"error": {"message": "temporarily unavailable"}},
+        )
+        error = httpx.HTTPStatusError(
+            "503 Service Unavailable",
+            request=request,
+            response=response,
+        )
+
+        with (
+            patch("apps.rag.generator._call_groq", side_effect=error) as call,
+            patch("apps.rag.generator.time.sleep"),
+        ):
+            _answer, _confidence, model = generate_answer(
+                "What methodology does the Brazil paper use?",
+                self.hits,
+                conversation_context=[],
+                answer_mode="workspace-general",
+            )
+
+        self.assertEqual(call.call_count, 3)
+        self.assertEqual(model, "retrieval-only")
