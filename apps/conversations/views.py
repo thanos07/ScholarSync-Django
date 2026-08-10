@@ -14,6 +14,7 @@ from django.utils import timezone
 
 from apps.rag.orchestrator import answer_workspace_question
 from apps.workspaces.models import Workspace
+from .citation_verification import verification_label, verify_citation_support
 from .forms import QuestionForm
 from .models import Citation, Conversation, Message
 from .pdf_export import build_conversation_pdf
@@ -54,8 +55,13 @@ def _selected_hit_numbers(answer, hits):
     return numbers
 
 
-def _citation_payload(number, hit):
+def _citation_payload(number, hit, answer):
     chunk = hit.item
+    verification_status = verify_citation_support(
+        answer,
+        number,
+        chunk.content,
+    )
     return {
         "number": number,
         "document_id": str(chunk.document_id),
@@ -63,15 +69,22 @@ def _citation_payload(number, hit):
         "page": chunk.page_number,
         "excerpt": chunk.content[:520],
         "score": round(float(hit.score), 3),
+        "verification_status": verification_status,
+        "verification_label": verification_label(verification_status),
         "paper_url": f"{reverse('document-view', args=[chunk.document_id])}#page={chunk.page_number}",
     }
 
 
 def _citations_for_result(result):
     hits = result.get("hits") or []
-    numbers = _selected_hit_numbers(result.get("answer", ""), hits)
+    answer = result.get("answer", "")
+    numbers = _selected_hit_numbers(answer, hits)
     return [
-        (number, hits[number - 1], _citation_payload(number, hits[number - 1]))
+        (
+            number,
+            hits[number - 1],
+            _citation_payload(number, hits[number - 1], answer),
+        )
         for number in numbers
     ]
 
@@ -201,6 +214,7 @@ def conversation_detail(request, conversation_id):
                         citation_number=number,
                         quoted_passage=chunk.content[:700],
                         retrieval_score=float(hit.score),
+                        verification_status=_payload["verification_status"],
                     )
 
                 update_fields = ["updated_at"]

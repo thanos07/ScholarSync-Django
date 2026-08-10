@@ -393,6 +393,11 @@
       link.rel = "noopener";
       link.textContent = `[${citation.number}] ${citation.source} · p. ${citation.page}`;
       list.appendChild(link);
+
+      const verification = document.createElement("span");
+      verification.className = `citation-verification citation-verification-${String(citation.verification_status || "unchecked").toLowerCase()}`;
+      verification.textContent = citation.verification_label || "Not checked";
+      list.appendChild(verification);
     });
     article.appendChild(list);
   }
@@ -418,6 +423,9 @@
         <p>${escapeHtml(citation.excerpt)}</p>
         <a href="${escapeHtml(citation.paper_url)}" target="_blank" rel="noopener">Open page ${citation.page} →</a>
         <small>${escapeHtml(citation.source)} · retrieval score ${escapeHtml(citation.score)}</small>
+        <span class="citation-verification citation-verification-${escapeHtml(String(citation.verification_status || "unchecked").toLowerCase())}">
+          ${escapeHtml(citation.verification_label || "Not checked")}
+        </span>
       `;
       container.appendChild(card);
     });

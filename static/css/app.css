@@ -176,3 +176,39 @@ body.research-page .demo-banner{flex:0 0 auto}
 }
 .comparison-form .button-row{margin-top:18px;margin-bottom:6px}
 .comparison-form + .panel-head{margin-top:18px}
+/* Claim-level citation evidence matching */
+.citation-verification{
+  display:inline-flex;
+  align-items:center;
+  width:max-content;
+  max-width:100%;
+  padding:3px 8px;
+  border:1px solid var(--border);
+  border-radius:999px;
+  font-size:.72rem;
+  font-weight:700;
+  line-height:1.2;
+  letter-spacing:.01em;
+}
+.citation-verification-supported,
+.citation-verification-valid{
+  background:#eef7f0;
+  border-color:#bfdac5;
+  color:#285f35;
+}
+.citation-verification-partial{
+  background:#fff7e7;
+  border-color:#e8d39d;
+  color:#755716;
+}
+.citation-verification-review{
+  background:#fff0f0;
+  border-color:#e5bcbc;
+  color:#7b3030;
+}
+.citation-verification-unchecked{
+  background:var(--bg);
+  color:var(--muted);
+}
+.citation-list .citation-verification{margin:2px 0 6px}
+.evidence-card .citation-verification{margin-top:8px}

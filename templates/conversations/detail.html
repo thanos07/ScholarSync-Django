@@ -72,6 +72,9 @@
               <b>Evidence</b>
               {% for citation in message.citations.all %}
                 <a href="{% url 'document-view' citation.document.id %}#page={{ citation.page_number }}" target="_blank" rel="noopener">[{{ citation.citation_number }}] {{ citation.document.display_title }} · p. {{ citation.page_number }}</a>
+                <span class="citation-verification citation-verification-{{ citation.verification_status|lower }}">
+                  {% if citation.verification_status == 'SUPPORTED' %}Strong evidence match{% elif citation.verification_status == 'PARTIAL' %}Partial evidence match{% elif citation.verification_status == 'REVIEW' %}Needs review{% elif citation.verification_status == 'VALID' %}Supported{% else %}Not checked{% endif %}
+                </span>
               {% endfor %}
             </div>
           {% endif %}
@@ -102,6 +105,9 @@
           <p>{{ citation.quoted_passage|truncatechars:520 }}</p>
           <a href="{% url 'document-view' citation.document.id %}#page={{ citation.page_number }}" target="_blank" rel="noopener">Open page {{ citation.page_number }} →</a>
           <small>{{ citation.document.display_title }} · retrieval score {{ citation.retrieval_score|floatformat:3 }}</small>
+          <span class="citation-verification citation-verification-{{ citation.verification_status|lower }}">
+            {% if citation.verification_status == 'SUPPORTED' %}Strong evidence match{% elif citation.verification_status == 'PARTIAL' %}Partial evidence match{% elif citation.verification_status == 'REVIEW' %}Needs review{% elif citation.verification_status == 'VALID' %}Supported{% else %}Not checked{% endif %}
+          </span>
         </article>
       {% empty %}
         <p class="muted" data-evidence-empty>Supporting passages will appear after your first grounded answer.</p>
