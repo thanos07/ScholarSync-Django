@@ -174,3 +174,45 @@ class GroundedAnswerStabilityTests(SimpleTestCase):
 
         self.assertEqual(call.call_count, 3)
         self.assertEqual(model, "retrieval-only")
+    @override_settings(GROQ_MODEL="test-model")
+    def test_workspace_general_payload_uses_bounded_token_budget(self):
+        long_text = "method evidence " * 500
+        document = SimpleNamespace(id="doc-long", display_title="Long Paper")
+        hits = []
+        for index in range(10):
+            item = SimpleNamespace(
+                id=f"chunk-{index}",
+                document_id="doc-long",
+                document=document,
+                page_number=index + 1,
+                content=long_text,
+            )
+            hits.append(SimpleNamespace(item=item, score=1.0))
+
+        payload = _request_payload(
+            "What methodology does this paper use?",
+            hits,
+            [],
+            "workspace-general",
+            structured=True,
+        )
+
+        self.assertEqual(payload["max_completion_tokens"], 900)
+        prompt = payload["messages"][1]["content"]
+        evidence = prompt.split("Evidence:\n", 1)[1].split(
+            "\n\nCurrent question:",
+            1,
+        )[0]
+        self.assertLessEqual(len(evidence), 6500)
+
+    @override_settings(GROQ_MODEL="test-model")
+    def test_formula_payload_keeps_full_completion_budget(self):
+        payload = _request_payload(
+            "Give me the formulas.",
+            self.hits,
+            [],
+            "workspace-formula",
+            structured=True,
+        )
+
+        self.assertEqual(payload["max_completion_tokens"], 2200)

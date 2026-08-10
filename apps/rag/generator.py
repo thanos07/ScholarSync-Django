@@ -202,8 +202,11 @@ def _normalize_html_math(text):
     value = re.sub(r"</?[A-Za-z][^>]*>", "", value)
     return value
 
-def build_evidence(hits):
+def build_evidence(hits, *, passage_char_limit=1800, total_char_limit=None):
+    """Build numbered evidence while optionally enforcing a prompt-size budget."""
     blocks = []
+    total_chars = 0
+
     for number, hit in enumerate(hits, 1):
         item = hit.item
         title = getattr(
@@ -213,14 +216,52 @@ def build_evidence(hits):
         )
         page = getattr(item, "page_number", getattr(item, "page", "?"))
         content = re.sub(r"\s+", " ", getattr(item, "content", "")).strip()
-        if len(content) > 1800:
-            content = content[:1800].rsplit(" ", 1)[0] + "…"
-        blocks.append(
+
+        limit = max(160, int(passage_char_limit or 1800))
+        if len(content) > limit:
+            content = content[:limit].rsplit(" ", 1)[0] + "…"
+
+        block = (
             f"[SOURCE {number}]\n"
             f"Document: {title}\n"
             f"Page: {page}\n"
             f"Passage: {content}"
         )
+
+        if total_char_limit is not None:
+            budget = max(1200, int(total_char_limit))
+            projected = total_chars + (2 if blocks else 0) + len(block)
+
+            if projected > budget:
+                # Keep earlier, higher-ranked retrieval hits intact. If there
+                # is a little room left, include a compact header/passage from
+                # this source instead of exceeding the request budget.
+                remaining = budget - total_chars - (2 if blocks else 0)
+                if remaining < 180:
+                    break
+
+                compact_prefix = (
+                    f"[SOURCE {number}]\n"
+                    f"Document: {title}\n"
+                    f"Page: {page}\n"
+                    "Passage: "
+                )
+                available = remaining - len(compact_prefix)
+                if available < 80:
+                    break
+
+                compact_content = content[:available].rsplit(" ", 1)[0].strip()
+                if not compact_content:
+                    break
+                block = compact_prefix + compact_content + "…"
+
+            blocks.append(block)
+            total_chars += (2 if len(blocks) > 1 else 0) + len(block)
+            if total_chars >= budget:
+                break
+        else:
+            blocks.append(block)
+
     return "\n\n".join(blocks)
 
 
@@ -1610,6 +1651,19 @@ def _response_schema():
 def _request_payload(question, hits, conversation_context, answer_mode, *, structured=True):
     conversation = _conversation_block(conversation_context)
     mode_instruction = MODE_INSTRUCTIONS.get(answer_mode, MODE_INSTRUCTIONS["general"])
+
+    # Private workspace Q&A is the most common interactive path and must stay
+    # comfortably below free-tier TPM limits. Retrieval order is already ranked,
+    # so keep the strongest evidence while bounding passage and total context.
+    if answer_mode == "workspace-general":
+        evidence = build_evidence(
+            hits,
+            passage_char_limit=900,
+            total_char_limit=6500,
+        )
+    else:
+        evidence = build_evidence(hits)
+
     output_instruction = (
         "Return only clean Markdown, not JSON. Preserve every LaTeX backslash exactly and place display equations inside $$...$$."
         if not structured
@@ -1619,7 +1673,7 @@ def _request_payload(question, hits, conversation_context, answer_mode, *, struc
         f"Task guidance: {mode_instruction}\n\n"
         f"Previous conversation (only for resolving genuine references such as 'it' or 'that'):\n"
         f"{conversation or 'None'}\n\n"
-        f"Evidence:\n{build_evidence(hits)}\n\n"
+        f"Evidence:\n{evidence}\n\n"
         f"Current question: {question}\n\n"
         "Write the answer to the current question. Do not let earlier conversation replace the current question. "
         f"{output_instruction}"
@@ -1630,7 +1684,15 @@ def _request_payload(question, hits, conversation_context, answer_mode, *, struc
         # Private research answers should be reproducible for the same
         # question and evidence. Public/demo modes may retain slight variation.
         "temperature": 0.0 if (formula_mode or answer_mode == "workspace-general") else 0.12,
-        "max_completion_tokens": 2200 if formula_mode else (1800 if structured else 1600),
+        "max_completion_tokens": (
+            2200
+            if formula_mode
+            else (
+                900
+                if answer_mode == "workspace-general"
+                else (1800 if structured else 1600)
+            )
+        ),
         "stream": False,
         "reasoning_effort": "low",
         "include_reasoning": False,
