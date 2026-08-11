@@ -60,6 +60,7 @@ MODE_INSTRUCTIONS = {
         "Inspect EVERY supplied source block before answering and return the complete list of distinct explicit equations you can verify; do not stop after the first equation when later sources contain more. "
         "Do not use a Markdown table. For each supported expression, use a numbered heading, a complete $$...$$ display block, "
         "a short symbol explanation, and a citation from the exact source block containing that equation. Preserve the paper's notation. Use LaTeX for all variable subscripts/superscripts; never use HTML tags. "
+        "When re-typesetting an expression, emit syntactically valid LaTeX commands such as \\sum, \\prod, \\sqrt, \\max, \\min, \\in, and \\dots, and use \\\\ row separators inside matrix or cases environments. "
         "PDF extraction can split fractions or replace an equals sign with a visually similar glyph; you may re-typeset an equation only when all of its variables and operators are present in the same source block. If the evidence describes a calculation but does not print its equation, say that explicitly."
     ),
     "workspace-table": (
@@ -102,8 +103,9 @@ _LATEX_JSON_COMMANDS = (
     "sin", "cos", "tan", "max", "min", "softmax", "ldots", "dots",
     "cdot", "times", "sum", "prod", "exp", "log", "infty",
     "alpha", "beta", "gamma", "epsilon", "varepsilon", "sigma",
-    "mu", "lambda", "theta", "phi", "psi", "omega", "partial",
+    "mu", "lambda", "xi", "theta", "phi", "psi", "omega", "partial",
     "nabla", "begin", "end", "overline", "hat", "bar", "vec",
+    "in", "cdots", "leq", "geq", "neq", "approx",
 )
 _LATEX_JSON_RE = re.compile(
     r"(?<!\\)\\(?=(?:"
@@ -1478,19 +1480,260 @@ def _should_strip_model_source_appendix(question, answer_mode):
     return not any(term in padded for term in source_listing_terms)
 
 
+def _restore_missing_tex_commands(value):
+    """
+    Restore TeX command backslashes commonly lost when visually
+    transcribed equations are reformatted by the generation model.
+
+    This repairs syntax only; it does not reconstruct formulas
+    from domain knowledge.
+    """
+    value = str(value or "")
+
+    # Occasional model corruption:
+    #     sum*{j=1}^{n}
+    # ->  \sum_{j=1}^{n}
+    value = re.sub(
+        r"(?<!\\)\bsum\*\{([^{}]+)\}",
+        lambda match: r"\sum_{" + match.group(1) + "}",
+        value,
+    )
+    value = re.sub(
+        r"(?<!\\)\bprod\*\{([^{}]+)\}",
+        lambda match: r"\prod_{" + match.group(1) + "}",
+        value,
+    )
+
+    # max/min are operators only in forms such as max_i / min_i.
+    # Do NOT convert the "max" inside \lambda_{max}.
+    value = re.sub(
+        r"(?<![A-Za-z\\])max(?=_)",
+        r"\\max",
+        value,
+    )
+    value = re.sub(
+        r"(?<![A-Za-z\\])min(?=_)",
+        r"\\min",
+        value,
+    )
+
+    commands = (
+        "sum",
+        "prod",
+        "sqrt",
+        "quad",
+        "qquad",
+        "dots",
+        "ldots",
+        "vdots",
+        "ddots",
+    )
+
+    for command in commands:
+        value = re.sub(
+            rf"(?<![A-Za-z\\]){command}(?![A-Za-z])",
+            lambda match: "\\" + match.group(0),
+            value,
+        )
+
+    # Plain spellings produced by the model for Greek symbols.
+    value = re.sub(
+        r"(?<![A-Za-z\\])lambda(?=_(?:\{|[A-Za-z]))",
+        r"\\lambda",
+        value,
+        flags=re.I,
+    )
+    value = re.sub(
+        r"(?<![A-Za-z\\])xi(?=_(?:\{|[A-Za-z0-9]))",
+        r"\\xi",
+        value,
+        flags=re.I,
+    )
+
+    # Vision transcription of "j ∈ J_1" sometimes arrives as "jin J_1".
+    value = re.sub(
+        r"\bjin\s+(J_(?:\{\d+\}|\d+))",
+        lambda match: r"j \in " + match.group(1),
+        value,
+        flags=re.I,
+    )
+
+    # Observed corruption:
+    #     w'*i
+    # ->  w'_i
+    value = re.sub(
+        r"\b([A-Za-z])'\*([A-Za-z0-9])\b",
+        lambda match: f"{match.group(1)}'_{match.group(2)}",
+        value,
+    )
+
+    return value
+
+
+def _canonicalize_tex_row_breaks(body):
+    """
+    Convert damaged or existing matrix/cases row separators into one
+    canonical TeX form:
+
+        <row> \\ <next row>
+    """
+    value = str(body or "")
+    marker = "ZZSCHOLARSYNCROWBREAKZZ"
+
+    # Preserve already-valid TeX row separators first.
+    value = re.sub(
+        r"\\\\\s*",
+        marker,
+        value,
+    )
+
+    # Repair the observed damaged form:
+    #     ... J_1\ \min_i ...
+    # where a single slash followed by whitespace is a lost row break.
+    value = re.sub(
+        r"(?<!\\)\\(?!\\)\s+",
+        marker,
+        value,
+    )
+
+    value = re.sub(
+        r"[ \t]*" + marker + r"[ \t]*",
+        marker,
+        value,
+    )
+
+    value = value.replace(
+        marker,
+        r" \\ ",
+    )
+
+    return value.strip()
+
+
+def _repair_tex_matrix_environments(value):
+    """
+    Repair syntax-only damage inside matrix environments.
+
+    This only restores row separators and a missing backslash before
+    end{...}; it does not add or alter mathematical values.
+    """
+    matrix_re = re.compile(
+        r"\\begin\{(?P<env>bmatrix|pmatrix|matrix)\}"
+        r"(?P<body>.*?)"
+        r"(?:\\?end\{(?P=env)\})",
+        re.S,
+    )
+
+    def repair(match):
+        env = match.group("env")
+        body = _canonicalize_tex_row_breaks(
+            match.group("body")
+        )
+        return (
+            rf"\begin{{{env}}}"
+            + body
+            + rf"\end{{{env}}}"
+        )
+
+    return matrix_re.sub(repair, value)
+
+
+def _repair_tex_cases_environment(value):
+    """
+    Repair row separators and a missing backslash before end{cases}.
+    """
+    cases_re = re.compile(
+        r"\\begin\{cases\}"
+        r"(?P<body>.*?)"
+        r"(?:\\?end\{cases\})",
+        re.S,
+    )
+
+    def repair(match):
+        body = _canonicalize_tex_row_breaks(
+            match.group("body")
+        )
+        return (
+            r"\begin{cases}"
+            + body
+            + r"\end{cases}"
+        )
+
+    return cases_re.sub(repair, value)
+
+
 def _normalize_formula_latex(expression):
-    # Canonicalize accepted formula text for KaTeX without changing its meaning.
+    """
+    Canonicalize formula text for KaTeX without changing mathematical
+    meaning.
+
+    Repairs only syntax artifacts directly observed in ScholarSync's
+    visual-equation pipeline, including missing TeX command slashes,
+    damaged matrix/cases row separators, and punctuation artifacts.
+    """
     value = str(expression or "").strip().strip("`")
-    value = value.replace("¼", "=").replace("＝", "=")
-    value = value.replace("−", "-").replace("–", "-")
-    value = value.replace(r"\(", "").replace(r"\)", "")
-    value = value.replace("$$", "").strip()
 
-    # Collapse an accidental doubled TeX-command slash such as \\lambda.
-    value = re.sub(r"\\\\(?=[A-Za-z])", lambda _match: "\\", value)
+    value = (
+        value
+        .replace("¼", "=")
+        .replace("＝", "=")
+        .replace("−", "-")
+        .replace("–", "-")
+    )
 
-    # Strip only wrappers around this exact PV label, then add one canonical
-    # \mathrm. Repeating handles nested \text/\mathrm wrappers.
+    value = (
+        value
+        .replace(r"\(", "")
+        .replace(r"\)", "")
+        .replace("$$", "")
+        .strip()
+    )
+
+    # Collapse accidental doubled command slashes such as \\lambda.
+    value = re.sub(
+        r"\\\\(?=[A-Za-z])",
+        lambda _match: "\\",
+        value,
+    )
+
+    # Visual-formula / model syntax repair.
+    value = _restore_missing_tex_commands(value)
+
+    # Remove punctuation artifacts observed inside fraction braces:
+    #     \frac{\lambda_{max}-n}{,n-1,}
+    # ->  \frac{\lambda_{max}-n}{n-1}
+    value = re.sub(
+        r"\{\s*,\s*",
+        "{",
+        value,
+    )
+    value = re.sub(
+        r"\s*,\s*\}",
+        "}",
+        value,
+    )
+
+    # A comma immediately before an opening parenthesis represented
+    # multiplication / adjacency in the source image.
+    value = re.sub(
+        r"(?<=[A-Za-z0-9}_'])\s*,\s*(?=\()",
+        " ",
+        value,
+    )
+
+    # Repair actual TeX environments after command restoration.
+    value = _repair_tex_matrix_environments(value)
+    value = _repair_tex_cases_environment(value)
+
+    # Put canonical spacing around \quad when merged with adjacent text.
+    value = re.sub(
+        r"\s*\\quad\s*",
+        lambda _match: r" \quad ",
+        value,
+    )
+
+    # Strip wrappers around the exact PV label before adding one canonical
+    # \mathrm wrapper.
     for _ in range(5):
         previous = value
         value = re.sub(
@@ -1507,6 +1750,8 @@ def _normalize_formula_latex(expression):
         value,
     )
 
+    # Keep "max" as a subscript label, not an operator:
+    #     \lambda_max -> \lambda_{max}
     value = re.sub(
         r"\\lambda_(?:\{)?max(?:\})?",
         r"\\lambda_{max}",
@@ -1518,32 +1763,55 @@ def _normalize_formula_latex(expression):
         value,
         flags=re.I,
     )
+
     value = re.sub(
-        r"(?<!\\)\bsum_\(([^)]+)\)\^([A-Za-z0-9]+)",
+        r"(?<![A-Za-z])\\?sum_\(([^)]+)\)\^([A-Za-z0-9]+)",
         r"\\sum_{\1}^{\2}",
         value,
     )
+
     value = re.sub(
         r"\b([A-Za-z])_([A-Za-z]{2,})\b",
         r"\1_{\2}",
         value,
     )
 
+    # Convert a simple:
+    #     lhs = (numerator) / (denominator)
+    # representation to a proper TeX fraction.
     fraction = re.fullmatch(
         r"\s*(.+?)\s*=\s*\(([^()]*)\)\s*/\s*\(([^()]*)\)\s*",
         value,
     )
+
     if fraction:
         lhs, numerator, denominator = fraction.groups()
         value = (
             f"{lhs.strip()} = "
-            f"\\frac{{{numerator.strip()}}}{{{denominator.strip()}}}"
+            f"\\frac{{{numerator.strip()}}}"
+            f"{{{denominator.strip()}}}"
         )
     else:
-        value = re.sub(r"\s*=\s*", " = ", value, count=1)
+        value = re.sub(
+            r"\s*=\s*",
+            " = ",
+            value,
+            count=1,
+        )
 
-    value = re.sub(r"\\\\(?=[A-Za-z])", lambda _match: "\\", value)
-    return re.sub(r"[ \t]+", " ", value).strip()
+    # One final doubled-command cleanup.
+    value = re.sub(
+        r"\\\\(?=[A-Za-z])",
+        lambda _match: "\\",
+        value,
+    )
+
+    return re.sub(
+        r"[ \t]+",
+        " ",
+        value,
+    ).strip()
+
 
 def _normalize_inline_formula_tokens(line):
     value = str(line or "")

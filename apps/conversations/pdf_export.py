@@ -261,13 +261,101 @@ def _expand_latex_fractions(text):
     return "".join(output)
 
 
+def _split_latex_environment_rows(body):
+    """Split a LaTeX matrix/cases body on real ``\\`` row separators."""
+    rows = []
+    for row in re.split(r"\\\\", str(body or "")):
+        row = re.sub(r"\s+", " ", row).strip()
+        if row:
+            rows.append(row)
+    return rows
+
+
+def _expand_latex_environments(text):
+    """Convert unsupported LaTeX layout environments to readable PDF text.
+
+    Browser KaTeX can render environments such as ``bmatrix`` and ``cases``.
+    ReportLab Paragraph cannot, so preserve their visual row structure as
+    multiline text before the normal LaTeX-to-ReportLab conversion runs.
+    """
+    value = str(text or "")
+
+    matrix_re = re.compile(
+        r"\\begin\{(?P<env>bmatrix|pmatrix|matrix)\}"
+        r"(?P<body>.*?)"
+        r"\\end\{(?P=env)\}",
+        re.S,
+    )
+
+    def matrix_repl(match):
+        env = match.group("env")
+        rows = []
+
+        for row in _split_latex_environment_rows(match.group("body")):
+            cells = [cell.strip() for cell in row.split("&")]
+            rows.append(" | ".join(cells))
+
+        if not rows:
+            return ""
+
+        if env == "bmatrix":
+            rows[0] = "[ " + rows[0]
+            rows[-1] = rows[-1] + " ]"
+        elif env == "pmatrix":
+            rows[0] = "( " + rows[0]
+            rows[-1] = rows[-1] + " )"
+
+        return "\n".join(rows)
+
+    value = matrix_re.sub(matrix_repl, value)
+
+    cases_re = re.compile(
+        r"\\begin\{cases\}(?P<body>.*?)\\end\{cases\}",
+        re.S,
+    )
+
+    def cases_repl(match):
+        rows = []
+
+        for row in _split_latex_environment_rows(match.group("body")):
+            parts = row.split("&", 1)
+            expression = parts[0].strip().rstrip(",")
+
+            if len(parts) == 2:
+                condition = parts[1].strip().lstrip(",")
+                rows.append(
+                    f"{expression}, if {condition}"
+                    if condition
+                    else expression
+                )
+            else:
+                rows.append(expression)
+
+        if not rows:
+            return ""
+
+        # Use sentinels because the generic cleanup later removes LaTeX braces.
+        rows[0] = "ZZSCHOLARSYNCCASEOPENZZ " + rows[0]
+        rows[-1] = rows[-1] + " ZZSCHOLARSYNCCASECLOSEZZ"
+
+        return "\n".join(rows)
+
+    return cases_re.sub(cases_repl, value)
+
+
 def _latex_to_pdf_markup(value):
-    # Convert formula LaTeX to readable ReportLab markup.
+    """Convert formula LaTeX into readable ReportLab Paragraph markup."""
     text = str(value or "").strip()
     text = text.replace(r"\[", "").replace(r"\]", "")
     text = text.replace(r"\(", "").replace(r"\)", "")
     text = text.replace("$$", "").replace("$", "")
 
+    # ReportLab does not understand LaTeX layout environments. Expand them
+    # before command replacement so matrices and piecewise cases stay readable.
+    text = _expand_latex_environments(text)
+
+    # Collapse accidental doubled command slashes after matrix/cases rows have
+    # already been converted to real line breaks.
     text = re.sub(r"\\\\(?=[A-Za-z])", lambda _match: "\\", text)
     text = _expand_latex_fractions(text)
 
@@ -281,9 +369,22 @@ def _latex_to_pdf_markup(value):
         if text == before:
             break
 
+    # Font-safe representation for simple accent commands.
+    text = re.sub(
+        r"\\bar\s*([A-Za-z](?:_\{[^{}]+\}|_[A-Za-z0-9]+)?)",
+        r"bar(\1)",
+        text,
+    )
+    text = re.sub(
+        r"\\overline\{([^{}]+)\}",
+        r"bar(\1)",
+        text,
+    )
+
     replacements = {
         r"\lambda": "lambda",
         r"\Lambda": "Lambda",
+        r"\xi": "xi",
         r"\max": "max",
         r"\min": "min",
         r"\sum": "∑",
@@ -291,6 +392,7 @@ def _latex_to_pdf_markup(value):
         r"\sqrt": "√",
         r"\times": "×",
         r"\cdot": "·",
+        r"\in": " in ",
         r"\leq": "≤",
         r"\geq": "≥",
         r"\neq": "≠",
@@ -302,12 +404,21 @@ def _latex_to_pdf_markup(value):
         r"\theta": "θ",
         r"\sigma": "σ",
         r"\mu": "μ",
+        r"\pm": "+/-",
+        r"\vdots": ":",
+        r"\ddots": "...",
+        r"\cdots": "…",
+        r"\ldots": "…",
+        r"\dots": "…",
+        r"\qquad": " ",
+        r"\quad": " ",
         r"\left": "",
         r"\right": "",
         r"\,": " ",
         r"\;": " ",
         r"\!": "",
     }
+
     for source, target in replacements.items():
         text = text.replace(source, target)
 
@@ -315,11 +426,19 @@ def _latex_to_pdf_markup(value):
     markup = re.sub(r"_\{([^{}]+)\}", r"<sub>\1</sub>", markup)
     markup = re.sub(r"\^\{([^{}]+)\}", r"<super>\1</super>", markup)
     markup = re.sub(r"_([A-Za-z0-9]+)", r"<sub>\1</sub>", markup)
-    markup = re.sub(r"\^([A-Za-z0-9]+)", r"<super>\1</super>", markup)
+    markup = re.sub(r"\^([A-Za-z0-9+\-]+)", r"<super>\1</super>", markup)
 
+    # Remove remaining LaTeX grouping braces, but restore the visual brace used
+    # for a piecewise ``cases`` environment.
     markup = markup.replace("{", "").replace("}", "")
-    markup = re.sub(r"\s+", " ", markup).strip()
-    return markup
+    markup = markup.replace("ZZSCHOLARSYNCCASEOPENZZ", "{")
+    markup = markup.replace("ZZSCHOLARSYNCCASECLOSEZZ", "}")
+
+    # Preserve environment rows as ReportLab line breaks.
+    markup = re.sub(r"[ \t]+", " ", markup)
+    markup = re.sub(r"\s*\n\s*", "<br/>", markup)
+    return markup.strip()
+
 
 def _inline_markup(value):
     """Convert a safe subset of Markdown and inline math to ReportLab markup."""
@@ -410,6 +529,20 @@ def _markdown_flowables(value, styles, available_width):
         line = raw.strip()
         if not line:
             flowables.append(Spacer(1, 3))
+            index += 1
+            continue
+
+        # Markdown thematic break. Do not print literal "---" in exports.
+        if re.fullmatch(r"(?:-{3,}|\*{3,}|_{3,})", line):
+            flowables.append(
+                HRFlowable(
+                    width="100%",
+                    thickness=0.4,
+                    color=BORDER,
+                    spaceBefore=2,
+                    spaceAfter=6,
+                )
+            )
             index += 1
             continue
 
@@ -527,15 +660,20 @@ def _markdown_flowables(value, styles, available_width):
                 ListItem(Paragraph(_inline_markup(content), styles["Body"]), leftIndent=12)
                 for content in contents
             ]
+            list_kwargs = {
+                "bulletType": "1" if ordered else "bullet",
+                "leftIndent": 18,
+                "bulletFontName": "Helvetica",
+                "bulletFontSize": 8.5,
+                "spaceAfter": 6,
+            }
+            if ordered:
+                list_kwargs["start"] = str(start_number)
+
             flowables.append(
                 ListFlowable(
                     items,
-                    bulletType="1" if ordered else "bullet",
-                    start=str(start_number),
-                    leftIndent=18,
-                    bulletFontName="Helvetica",
-                    bulletFontSize=8.5,
-                    spaceAfter=6,
+                    **list_kwargs,
                 )
             )
             continue

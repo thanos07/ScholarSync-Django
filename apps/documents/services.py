@@ -5,6 +5,7 @@ from django.utils import timezone
 from .chunking import chunk_page
 from .models import Document, DocumentChunk
 from .storage import get_document_storage
+from .visual_equations import extract_visual_equation_chunks
 
 @transaction.atomic
 def index_document(document: Document, pdf_bytes: bytes) -> Document:
@@ -20,8 +21,18 @@ def index_document(document: Document, pdf_bytes: bytes) -> Document:
         document.chunks.all().delete()
         pending = []
         for page_idx in range(pdf.page_count):
-            text = pdf.load_page(page_idx).get_text("text")
-            for chunk_idx, content in enumerate(chunk_page(text)):
+            page = pdf.load_page(page_idx)
+            text = page.get_text("text")
+            page_chunks = list(chunk_page(text))
+            page_chunks.extend(
+                extract_visual_equation_chunks(
+                    page,
+                    page_number=page_idx + 1,
+                    page_text=text,
+                )
+            )
+
+            for chunk_idx, content in enumerate(page_chunks):
                 pending.append(DocumentChunk(
                     document=document, workspace=document.workspace, owner=document.owner,
                     page_number=page_idx + 1, chunk_index=chunk_idx,
