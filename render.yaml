@@ -3,15 +3,74 @@ services:
     name: scholarsync
     runtime: python
     plan: free
+    region: singapore
+
+    branch: chore/private-workspace-release-readiness
+    autoDeployTrigger: commit
+
     buildCommand: ./build.sh
+
     startCommand: gunicorn config.wsgi:application --workers 1 --threads 2 --timeout 180 --bind 0.0.0.0:$PORT
+
     healthCheckPath: /health/
+
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: config.settings.production
+
+      - key: DJANGO_DEBUG
+        value: "false"
+
       - key: PYTHON_VERSION
         value: 3.12.8
+
       - key: DJANGO_SECRET_KEY
         generateValue: true
-      - key: DJANGO_DEBUG
-        value: false
+
+      - key: DJANGO_ALLOWED_HOSTS
+        fromService:
+          type: web
+          name: scholarsync
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+
+      - key: CSRF_TRUSTED_ORIGINS
+        fromService:
+          type: web
+          name: scholarsync
+          envVarKey: RENDER_EXTERNAL_URL
+
+      - key: DATABASE_URL
+        sync: false
+
+      - key: GROQ_API_KEY
+        sync: false
+
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-20b
+
+      - key: GROQ_VISION_MODEL
+        value: qwen/qwen3.6-27b
+
+      - key: DOCUMENT_STORAGE_BACKEND
+        value: supabase
+
+      - key: SUPABASE_URL
+        sync: false
+
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      - key: SUPABASE_STORAGE_BUCKET
+        value: research-pdfs
+
+      - key: MAX_PDF_SIZE_MB
+        value: "10"
+
+      - key: MAX_PDF_PAGES
+        value: "75"
+
+      - key: MAX_DOCUMENTS_PER_USER
+        value: "3"
+
+      - key: MAX_DAILY_QUESTIONS
+        value: "15"
