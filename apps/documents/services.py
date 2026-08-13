@@ -53,7 +53,28 @@ def index_document(document: Document, pdf_bytes: bytes) -> Document:
     return document
 
 def remove_document(document: Document):
+    previous_status = document.processing_status
+
     document.processing_status = Document.Status.DELETING
     document.save(update_fields=["processing_status"])
-    get_document_storage().delete(document.storage_path)
+
+    try:
+        get_document_storage().delete(document.storage_path)
+    except Exception as exc:
+        # A failed remote delete must not leave the document permanently
+        # stuck in the DELETING state.
+        document.processing_status = (
+            previous_status
+            if previous_status != Document.Status.DELETING
+            else Document.Status.FAILED
+        )
+        document.processing_error = str(exc)[:1000]
+        document.save(
+            update_fields=[
+                "processing_status",
+                "processing_error",
+            ]
+        )
+        raise
+
     document.delete()

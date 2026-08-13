@@ -35,8 +35,28 @@ class SupabasePrivateStorage:
         response.raise_for_status()
         return response.content
     def delete(self, path: str) -> None:
+        # Failed uploads can leave a database row whose storage path was never
+        # replaced with a real Supabase object path.
+        if not path or path == "pending":
+            return
+
         url = f"{self.base}/storage/v1/object/{self.bucket}"
-        response = httpx.delete(url, headers={**self.headers, "Content-Type": "application/json"}, json={"prefixes": [path]}, timeout=30)
+
+        # HTTPX's delete() convenience function intentionally does not accept
+        # request bodies. Supabase's bulk-delete endpoint requires a JSON body,
+        # so use the generic request() API.
+        response = httpx.request(
+            "DELETE",
+            url,
+            headers={
+                **self.headers,
+                "Content-Type": "application/json",
+            },
+            json={
+                "prefixes": [path],
+            },
+            timeout=30,
+        )
         response.raise_for_status()
 
 def get_document_storage():
