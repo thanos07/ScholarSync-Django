@@ -12,6 +12,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.notes.chat_actions import (
+    build_chat_note_draft,
+    chat_note_confirmation,
+    is_chat_note_request,
+)
+from apps.notes.models import Note
 from apps.rag.orchestrator import answer_workspace_question
 from apps.workspaces.models import Workspace
 from .citation_verification import verification_label, verify_citation_support
@@ -168,14 +174,43 @@ def conversation_detail(request, conversation_id):
             ).select_related("document")
 
             started = time.perf_counter()
+            note_draft = None
             try:
-                result = answer_workspace_question(
-                    question,
-                    chunks,
-                    history=history,
-                    documents=documents,
-                )
-                citation_rows = _citations_for_result(result)
+                if is_chat_note_request(question):
+                    note_draft = build_chat_note_draft(
+                        conversation,
+                        question,
+                        documents,
+                    )
+                    if note_draft is None:
+                        result = {
+                            "answer": (
+                                "I could not find an earlier research answer in this "
+                                "conversation to save as a note. Ask a research question "
+                                "first, then say `save this as a note`."
+                            ),
+                            "confidence": "low",
+                            "model": "note-action",
+                            "hits": [],
+                            "intent": "note",
+                        }
+                    else:
+                        result = {
+                            "answer": chat_note_confirmation(note_draft),
+                            "confidence": "high",
+                            "model": "note-action",
+                            "hits": [],
+                            "intent": "note",
+                        }
+                    citation_rows = []
+                else:
+                    result = answer_workspace_question(
+                        question,
+                        chunks,
+                        history=history,
+                        documents=documents,
+                    )
+                    citation_rows = _citations_for_result(result)
             except Exception:
                 logger.exception("Private workspace question failed")
                 if _is_ajax(request):
@@ -203,6 +238,17 @@ def conversation_detail(request, conversation_id):
                     confidence=result["confidence"],
                     response_time_ms=int((time.perf_counter() - started) * 1000),
                 )
+
+                if note_draft is not None:
+                    Note.objects.create(
+                        owner=request.user,
+                        workspace=conversation.workspace,
+                        document=note_draft["document"],
+                        page_number=note_draft["page_number"],
+                        title=note_draft["title"],
+                        content=note_draft["content"],
+                        tags=note_draft["tags"],
+                    )
 
                 for number, hit, _payload in citation_rows:
                     chunk = hit.item
