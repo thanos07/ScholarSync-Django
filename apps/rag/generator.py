@@ -85,6 +85,9 @@ MODE_INSTRUCTIONS = {
     "workspace-general": (
         "Answer the current question only from the uploaded documents. Define abbreviations from the evidence, distinguish facts from interpretation, "
         "and avoid adding standard domain knowledge that is not visible in the supplied passages. "
+        "When the user asks what method, methods, methodology, approach, or workflow a study actually uses, report only techniques explicitly applied by "
+        "that study's authors. Do not promote methods that are merely mentioned, cited, compared, or discussed in the literature/background as methods "
+        "used by the study. "
         "Keep source markers attached to the factual claims they support. Do not append a separate Sources, References, Evidence used, or citation-summary "
         "section; ScholarSync renders the source list separately."
     ),
@@ -181,7 +184,7 @@ def _grounded_answer_cache_key(question, hits, answer_mode, conversation_context
         parts.append(f"{document_id}:{page}:{content_hash}")
 
     digest = hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
-    return f"scholarsync:grounded-answer:v1:{digest}"
+    return f"scholarsync:grounded-answer:v2:{digest}"
 
 def _normalize_html_math(text):
     """Convert model-emitted HTML sub/sup tags to Markdown-safe inline LaTeX."""
@@ -1148,8 +1151,73 @@ def _is_workspace_methodology_question(question):
     )
 
 
+def _is_applied_methodology_question(question):
+    """Whether the user is asking for the study's own applied methodology.
+
+    A paper can mention many methods in its literature review. Questions such
+    as "what methods are used in this paper?" should describe only techniques
+    actually applied by the study, while explicit literature/background
+    questions must remain eligible for the state-of-the-art path.
+    """
+    if not _is_workspace_methodology_question(question):
+        return False
+    if _is_state_of_art_question(question):
+        return False
+
+    normalized = f" {' '.join(tokens(str(question or '')))} "
+    background_intent = (
+        " mentioned ",
+        " cited ",
+        " references ",
+        " referenced ",
+        " discussed in literature ",
+        " literature methods ",
+        " background methods ",
+        " related work ",
+    )
+    return not any(term in normalized for term in background_intent)
+
+
 def _methodology_fallback_sentence_score(sentence, hit):
     lower = str(sentence or "").lower()
+    heading = str(getattr(hit.item, "section_heading", "") or "").lower()
+    method_section = any(
+        term in heading
+        for term in ("method", "methodology", "workflow", "materials and methods")
+    )
+    background_section = any(
+        term in heading
+        for term in (
+            "literature", "related work", "state of the art", "background",
+            "review of",
+        )
+    )
+    study_attribution = bool(
+        re.search(
+            r"\b(?:this|the)\s+(?:study|paper|research|work|model|approach|methodology)\b.{0,160}"
+            r"\b(?:uses?|using|applies?|applied|employs?|employed|combines?|combined|"
+            r"integrates?|integrated|constructs?|constructed|performs?|performed|proposes?|proposed)\b",
+            lower,
+        )
+        or re.search(
+            r"\b(?:we|the authors?)\s+(?:use|used|apply|applied|employ|employed|"
+            r"combine|combined|integrate|integrated|construct|constructed|perform|performed|"
+            r"propose|proposed)\b",
+            lower,
+        )
+        or "in this study" in lower
+        or "in this paper" in lower
+        or "in this work" in lower
+        or "proposed methodology" in lower
+        or "proposed model" in lower
+    )
+
+    # Literature/background sections are not evidence that a technique was
+    # applied by the current study. Keep an explicitly study-attributed method
+    # sentence if an introduction/review section happens to summarize the
+    # paper's own workflow, but reject generic background method descriptions.
+    if background_section and not study_attribution:
+        return -1.0
 
     # Section 2 in the Brazil paper is state-of-the-art / literature review,
     # not the study's own methodology. Reject this organizational sentence
@@ -1176,6 +1244,32 @@ def _methodology_fallback_sentence_score(sentence, hit):
             "doi.org/",
             "corresponding author",
         )
+    ):
+        return -1.0
+
+    # Generic taxonomy/background statements are a common source of method
+    # attribution errors. Reject them unless the sentence is clearly located in
+    # a methodology/workflow section or explicitly attributes the action to the
+    # current study/authors.
+    background_method_markers = (
+        "mentioned as",
+        "referenced as",
+        "cited as",
+        "available in the literature",
+        "in the literature",
+        "subjective weighting method",
+        "objective weighting method",
+        "weighting methods are",
+        "weighting methods can",
+        "methods are classified",
+        "methods can be classified",
+        "other methods",
+        "various methods",
+    )
+    if (
+        any(marker in lower for marker in background_method_markers)
+        and not method_section
+        and not study_attribution
     ):
         return -1.0
 
@@ -1233,9 +1327,10 @@ def _methodology_fallback_sentence_score(sentence, hit):
     if 65 <= len(sentence) <= 360:
         score += 0.25
 
-    heading = str(getattr(hit.item, "section_heading", "") or "").lower()
-    if "method" in heading or "workflow" in heading:
+    if method_section:
         score += 1.0
+    if study_attribution:
+        score += 1.2
 
     return score
 
@@ -1338,6 +1433,65 @@ def _workspace_methodology_fallback(hits):
     for _score, source_number, _page_number, sentence, _tags in selected:
         lines.append(f"- {sentence} [{source_number}]")
     return "\n".join(lines)
+
+_APPLIED_METHODOLOGY_BACKGROUND_ANSWER_MARKERS = (
+    "mentioned as",
+    "referenced as",
+    "cited as",
+    "available in the literature",
+    "in the literature",
+    "literature review",
+    "related work",
+    "subjective weighting method",
+    "objective weighting method",
+)
+
+
+def _hit_supports_applied_methodology(hit):
+    """Whether a retrieved hit contains evidence for the paper's own method."""
+    content = re.sub(
+        r"\s+",
+        " ",
+        str(getattr(hit.item, "content", "") or ""),
+    ).strip()
+    if not content:
+        return False
+
+    sentences = SENTENCE_SPLIT_RE.split(content)
+    if len(sentences) == 1:
+        sentences = [content]
+
+    return any(
+        _methodology_fallback_sentence_score(sentence.strip(" •\t\n"), hit) > 0
+        for sentence in sentences
+        if 45 <= len(sentence.strip(" •\t\n")) <= 430
+    )
+
+
+def _applied_methodology_answer_is_safe(answer, hits):
+    """Reject methodology answers that promote background methods as applied ones.
+
+    The model may see literature-review passages from the correct PDF. For an
+    applied-methodology question, cited evidence must itself support the study's
+    own workflow, and the answer must not frame literature-only techniques as
+    part of that workflow.
+    """
+    value = str(answer or "")
+    lower = value.lower()
+
+    if any(marker in lower for marker in _APPLIED_METHODOLOGY_BACKGROUND_ANSWER_MARKERS):
+        return False
+
+    cited = cited_source_numbers(value, len(hits))
+    if not cited:
+        # The normal citation gate in generate_answer handles uncited answers.
+        return True
+
+    return all(
+        _hit_supports_applied_methodology(hits[source_number - 1])
+        for source_number in cited
+    )
+
 
 def _document_balanced_summary_fallback(hits):
     """Return one grounded overview item per represented uploaded document."""
@@ -2455,6 +2609,18 @@ def generate_answer(question, hits, conversation_context=None, answer_mode="gene
                             "Groq workspace summary omitted one or more represented "
                             "documents; using document-balanced retrieval fallback "
                             "instead of regenerating."
+                        )
+                        break
+
+                    if (
+                        answer_mode == "workspace-general"
+                        and _is_applied_methodology_question(question)
+                        and not insufficient
+                        and not _applied_methodology_answer_is_safe(answer, hits)
+                    ):
+                        logger.warning(
+                            "Groq applied-methodology answer relied on background-only "
+                            "method evidence; using the conservative methodology fallback."
                         )
                         break
 
