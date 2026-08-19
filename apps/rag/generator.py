@@ -76,8 +76,11 @@ MODE_INSTRUCTIONS = {
         "Never replace the requested comparison with a list of excerpts."
     ),
     "workspace-summary": (
-        "Summarize the uploaded material around its objective, method, data or criteria, main findings, and limitations when supported. "
-        "Prefer document-balanced coverage and cite every factual paragraph."
+        "Summarize every uploaded document represented in the supplied evidence. "
+        "When evidence contains multiple documents, give each document its own clearly labeled section and do not omit any represented document. "
+        "For each document, summarize its objective, method, data or criteria, main findings, and limitations when supported. "
+        "Keep the documents distinct and attach at least one citation from that same document to every document section. "
+        "Never silently summarize only one document when multiple documents are represented in the supplied evidence."
     ),
     "workspace-general": (
         "Answer the current question only from the uploaded documents. Define abbreviations from the evidence, distinguish facts from interpretation, "
@@ -342,6 +345,53 @@ def cited_source_numbers(text, max_source):
         if 1 <= number <= max_source and number not in numbers:
             numbers.append(number)
     return numbers
+
+
+def _workspace_summary_document_key(hit):
+    """Return a stable identity for the document behind a retrieval hit."""
+    item = hit.item
+    document = getattr(item, "document", None)
+    document_id = getattr(item, "document_id", None) or getattr(document, "id", None)
+    if document_id:
+        return f"id:{document_id}"
+
+    title = (
+        getattr(document, "display_title", None)
+        or getattr(document, "original_filename", None)
+        or getattr(item, "source", None)
+    )
+    if title:
+        return f"title:{title}"
+    return ""
+
+
+def _workspace_summary_document_keys(hits):
+    return {
+        key
+        for hit in (hits or [])
+        if (key := _workspace_summary_document_key(hit))
+    }
+
+
+def _workspace_summary_covers_all_documents(answer, hits):
+    """
+    Require a multi-document workspace summary to cite every represented PDF.
+
+    Citation numbers identify retrieval hits, so map each citation back to the
+    document behind that hit. This prevents an otherwise valid Egypt-only
+    summary from being accepted when Turkey and Brazil were also in scope.
+    """
+    represented_documents = _workspace_summary_document_keys(hits)
+    if len(represented_documents) <= 1:
+        return True
+
+    cited_documents = set()
+    for source_number in cited_source_numbers(answer, len(hits)):
+        key = _workspace_summary_document_key(hits[source_number - 1])
+        if key:
+            cited_documents.add(key)
+
+    return represented_documents.issubset(cited_documents)
 
 
 def _message_text(data):
@@ -2380,9 +2430,33 @@ def generate_answer(question, hits, conversation_context=None, answer_mode="gene
                             # browser/PDF output and weakens claim-level
                             # verification context.
                             answer = f"{answer.rstrip()} {source_markers}"
+                            cited = used_sources
+                        elif (
+                            answer_mode == "workspace-summary"
+                            and len(_workspace_summary_document_keys(hits)) > 1
+                        ):
+                            # For a multi-PDF summary, do not rescue an uncited
+                            # answer by appending a citation-only tail. The
+                            # summary must itself cite every represented paper;
+                            # otherwise the deterministic document-balanced
+                            # fallback below is safer and cheaper than another
+                            # model generation.
+                            pass
                         else:
                             answer = f"{answer}\n\n{source_markers}"
-                        cited = used_sources
+                            cited = used_sources
+
+                    if (
+                        answer_mode == "workspace-summary"
+                        and not insufficient
+                        and not _workspace_summary_covers_all_documents(answer, hits)
+                    ):
+                        logger.warning(
+                            "Groq workspace summary omitted one or more represented "
+                            "documents; using document-balanced retrieval fallback "
+                            "instead of regenerating."
+                        )
+                        break
 
                     # Never attach arbitrary evidence cards to a synthesized
                     # answer. A sufficient grounded answer must identify the
