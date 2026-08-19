@@ -1600,19 +1600,33 @@ def _extractive_answer(question, hits, answer_mode="general"):
 def _clean_answer_markdown(text, *, strip_source_appendix=False):
     if not text:
         return ""
+
     value = _normalize_html_math(text)
     lines = value.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     cleaned = []
+
     for index, line in enumerate(lines):
         stripped = line.strip()
+
+        # Remove Markdown heading syntax before checking section/internal labels.
         label = re.sub(r"^#{1,6}\s*", "", stripped).strip()
-        # Models may format section labels with Markdown emphasis rather than
-        # heading syntax, e.g. **Sources** or __References__.
+
+        # Models may format complete section labels with Markdown emphasis,
+        # e.g. **Sources** or __References__.
         label = re.sub(
             r"^(?:\*{1,3}|_{1,3})\s*(.*?)\s*(?:\*{1,3}|_{1,3})$",
             r"\1",
             label,
         ).strip()
+
+        # Internal structured-output labels can also be only partially
+        # emphasized, for example:
+        #
+        #     **Evidence sufficient:** false
+        #
+        # Strip emphasis only for label detection. Keep the original line
+        # unchanged when it is legitimate user-facing prose.
+        internal_label = re.sub(r"[*_`]+", "", label).strip()
 
         # Workspace pages already render a canonical evidence/source panel.
         # If a model nevertheless appends its own trailing Sources/References
@@ -1621,9 +1635,14 @@ def _clean_answer_markdown(text, *, strip_source_appendix=False):
         if (
             strip_source_appendix
             and cleaned
-            and re.fullmatch(r"(?:sources?|references?)\s*:?", label, re.I)
+            and re.fullmatch(
+                r"(?:sources?|references?)\s*:?",
+                internal_label,
+                re.I,
+            )
         ):
             tail = lines[index + 1:]
+
             citation_marker_re = re.compile(
                 r"(?:"
                 r"\[\s*(?:SOURCE\s+)?\d+(?:\s*[,;]\s*\d+)*\s*\]"
@@ -1631,26 +1650,48 @@ def _clean_answer_markdown(text, *, strip_source_appendix=False):
                 r")",
                 re.I,
             )
-            if any(citation_marker_re.search(tail_line) for tail_line in tail):
+
+            if any(
+                citation_marker_re.search(tail_line)
+                for tail_line in tail
+            ):
                 break
 
+        # Remove internal structured-output/debug labels such as:
+        # Evidence sufficient: false
+        # **Evidence sufficient:** false
+        # Evidence_sufficient: true
+        # Evidence used:
+        # Citation map:
         if re.match(
             r"^(?:evidence sufficient|evidence_sufficient|evidence used|"
             r"evidence sources|used evidence|citation map|source map)"
             r"\s*:?(?:\s*(?:yes|no|true|false))?\s*$",
-            label,
+            internal_label,
             re.I,
         ):
             break
+
+        # Remove other structured-output field names if the model exposes them.
         if re.match(
-            r"^(?:answer markdown|answer_markdown|sources used|used_sources)\s*:?.*$",
-            label,
+            r"^(?:answer markdown|answer_markdown|sources used|used_sources)"
+            r"\s*:?.*$",
+            internal_label,
             re.I,
         ):
             continue
-        if re.match(r"^sources?\s*:\s*(?:\[\d+\]\s*)+$", stripped, re.I):
+
+        # Remove compact duplicate source-only lines such as:
+        # Sources: [1][3][5]
+        if re.match(
+            r"^sources?\s*:\s*(?:\[\d+\]\s*)+$",
+            internal_label,
+            re.I,
+        ):
             continue
+
         cleaned.append(line.rstrip())
+
     return "\n".join(cleaned).strip()
 
 
