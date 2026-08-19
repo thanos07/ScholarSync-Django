@@ -277,62 +277,6 @@ class GroundedAnswerStabilityTests(SimpleTestCase):
             ["source_1", "source_2", "source_3", "source_4"],
         )
         self.assertFalse(used_sources["additionalProperties"])
-    def _clean_answer_markdown(text, *, strip_source_appendix=False):
-        if not text:
-            return ""
-        value = _normalize_html_math(text)
-        lines = value.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-        cleaned = []
-        for index, line in enumerate(lines):
-            stripped = line.strip()
-            label = re.sub(r"^#{1,6}\s*", "", stripped).strip()
-            # Models may format section labels with Markdown emphasis rather than
-            # heading syntax, e.g. **Sources** or __References__.
-            label = re.sub(
-                r"^(?:\*{1,3}|_{1,3})\s*(.*?)\s*(?:\*{1,3}|_{1,3})$",
-                r"\1",
-                label,
-            ).strip()
-
-            # Workspace pages already render a canonical evidence/source panel.
-            # If a model nevertheless appends its own trailing Sources/References
-            # summary, remove only that appendix. Require citation markers in the
-            # tail so an ordinary prose heading is not removed accidentally.
-            if (
-                strip_source_appendix
-                and cleaned
-                and re.fullmatch(r"(?:sources?|references?)\s*:?", label, re.I)
-            ):
-                tail = lines[index + 1:]
-                citation_marker_re = re.compile(
-                    r"(?:"
-                    r"\[\s*(?:SOURCE\s+)?\d+(?:\s*[,;]\s*\d+)*\s*\]"
-                    r"|【\s*\d+\s*】"
-                    r")",
-                    re.I,
-                )
-                if any(citation_marker_re.search(tail_line) for tail_line in tail):
-                    break
-
-            if re.match(
-                r"^(?:evidence sufficient|evidence_sufficient|evidence used|"
-                r"evidence sources|used evidence|citation map|source map)"
-                r"\s*:?(?:\s*(?:yes|no|true|false))?\s*$",
-                label,
-                re.I,
-            ):
-                break
-            if re.match(
-                r"^(?:answer markdown|answer_markdown|sources used|used_sources)\s*:?.*$",
-                label,
-                re.I,
-            ):
-                continue
-            if re.match(r"^sources?\s*:\s*(?:\[\d+\]\s*)+$", stripped, re.I):
-                continue
-            cleaned.append(line.rstrip())
-        return "\n".join(cleaned).strip()
-
     @override_settings(GROQ_MODEL="test-model")
     def test_structured_prompt_separates_source_ids_from_bibliography_numbers(self):
         payload = _request_payload(
