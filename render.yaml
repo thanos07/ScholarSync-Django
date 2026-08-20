@@ -5,7 +5,7 @@ services:
     plan: free
     region: singapore
 
-    branch: chore/private-workspace-release-readiness
+    branch: main
     autoDeployTrigger: commit
 
     buildCommand: ./build.sh
