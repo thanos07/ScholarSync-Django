@@ -1,1 +1,57 @@
-{% extends "base.html" %}{% block title %}Notes - ScholarSync{% endblock %}{% block content %}<section class="shell page-top"><div><span class="eyebrow">Research notes</span><h1>Saved notes</h1><p>Notes saved from answers and document pages will appear here.</p></div></section><section class="shell card-grid">{% for note in notes %}<article class="feature-card"><span class="eyebrow">{{ note.workspace.name }}</span><h2>{{ note.title }}</h2><p>{{ note.content|truncatechars:240 }}</p></article>{% empty %}<div class="empty-state"><h2>No notes yet</h2><p>The note creation workflow is prepared for the next implementation milestone.</p></div>{% endfor %}</section>{% endblock %}
+{% extends "base.html" %}
+
+{% block title %}Notes - ScholarSync{% endblock %}
+
+{% block content %}
+<section class="shell page-top">
+  <div>
+    <span class="eyebrow">Research notes</span>
+    <h1>Saved notes</h1>
+    <p>Create workspace notes and optionally connect them to a document page.</p>
+  </div>
+</section>
+
+<section class="shell workspace-layout">
+  <section class="panel">
+    <span class="eyebrow">Create</span>
+    <h2>New note</h2>
+    <p class="muted">Keep a research observation, interpretation, or page-specific reminder.</p>
+
+    <form method="post" class="stack-form">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button class="button" type="submit">Save note</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Your notes</h2>
+      <span class="muted">{{ notes|length }} saved</span>
+    </div>
+
+    {% for note in notes %}
+      <article class="document-row">
+        <div class="grow">
+          <span class="eyebrow">{{ note.workspace.name }}</span>
+          <h3>{{ note.title }}</h3>
+          <p>{{ note.content|truncatechars:220 }}</p>
+          <p class="muted">
+            {% if note.document %}
+              {{ note.document.display_title }}{% if note.page_number %}, page {{ note.page_number }}{% endif %}
+            {% else %}
+              Workspace note
+            {% endif %}
+            {% if note.tags %} · {{ note.tags }}{% endif %}
+          </p>
+        </div>
+      </article>
+    {% empty %}
+      <div class="compact-empty">
+        <h3>No notes yet</h3>
+        <p>Create your first note using the form.</p>
+      </div>
+    {% endfor %}
+  </section>
+</section>
+{% endblock %}

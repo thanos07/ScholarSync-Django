@@ -95,6 +95,10 @@ MAX_DOCUMENTS_PER_USER = int(os.getenv("MAX_DOCUMENTS_PER_USER", "3"))
 MAX_DAILY_QUESTIONS = int(os.getenv("MAX_DAILY_QUESTIONS", "15"))
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b").strip() or "openai/gpt-oss-20b"
+GROQ_VISION_MODEL = (
+    os.getenv("GROQ_VISION_MODEL", "qwen/qwen3.6-27b").strip()
+    or "qwen/qwen3.6-27b"
+)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "research-pdfs")
