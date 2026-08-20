@@ -159,6 +159,73 @@ class ChatNoteCreationTests(TestCase):
         self.assertIn("chat,methodology", note.tags)
 
     @patch("apps.conversations.views.answer_workspace_question")
+    def test_retry_ignores_answer_from_previous_failed_note_attempt(
+        self,
+        answer_workspace_question_mock,
+    ):
+        Message.objects.create(
+            conversation=self.conversation,
+            role=Message.Role.USER,
+            content="create a note from the Turkey methodology discussion",
+        )
+        failed_answer = Message.objects.create(
+            conversation=self.conversation,
+            role=Message.Role.ASSISTANT,
+            content=(
+                "Methodology supported by the paper\n\n"
+                "Accessed July 27, 2022 Karabulut AI, Yazici-Karabulut B, "
+                "Derin P, Yesilnacar MI, Cullu MA (2022) Landfill siting "
+                "for municipal solid waste using remote sensing and "
+                "geographic information system integrated analytic hierarchy "
+                "process and simple additive weighting methods. [8]"
+            ),
+            model_name="test-model",
+            confidence="high",
+        )
+        page_17_chunk = DocumentChunk.objects.create(
+            owner=self.user,
+            workspace=self.workspace,
+            document=self.document,
+            page_number=17,
+            chunk_index=0,
+            section_heading="References",
+            content=(
+                "Karabulut AI et al. (2022) Landfill siting using remote "
+                "sensing, GIS, AHP and simple additive weighting methods."
+            ),
+            content_hash="f" * 64,
+        )
+        Citation.objects.create(
+            message=failed_answer,
+            chunk=page_17_chunk,
+            document=self.document,
+            page_number=17,
+            citation_number=8,
+            quoted_passage=page_17_chunk.content,
+            retrieval_score=1.0,
+            verification_status="VALID",
+        )
+
+        response = self.client.post(
+            reverse("conversation-detail", args=[self.conversation.id]),
+            {"question": "create a note from the Turkey methodology discussion"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["model"], "note-action")
+        answer_workspace_question_mock.assert_not_called()
+
+        note = Note.objects.get()
+        self.assertIn("FAHP", note.content)
+        self.assertIn("GIS", note.content)
+        self.assertIn("Source: 15_Turkey_AHP, pages 2, 13.", note.content)
+        self.assertNotIn("Accessed July 27, 2022", note.content)
+        self.assertNotEqual(note.page_number, 17)
+
+    @patch("apps.conversations.views.answer_workspace_question")
     def test_note_command_without_prior_answer_does_not_create_empty_note(
         self,
         answer_workspace_question_mock,

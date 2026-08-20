@@ -192,6 +192,15 @@ def _candidate_messages(conversation, question, documents):
         if role != "ASSISTANT" or not content:
             continue
 
+        # Never use an answer produced for an earlier note command as the
+        # source of a new note. This also excludes note-action confirmations.
+        # Otherwise, retrying "create a note..." can select the previous failed
+        # note attempt instead of the actual research discussion the user named.
+        if is_chat_note_request(prior_user) or str(
+            getattr(message, "model_name", "") or ""
+        ).lower() == "note-action":
+            continue
+
         citations = list(message.citations.all())
         cited_document_ids = {
             str(getattr(citation, "document_id", "") or "")
