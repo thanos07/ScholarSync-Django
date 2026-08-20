@@ -71,8 +71,11 @@ MODE_INSTRUCTIONS = {
         "Compare only the uploaded documents represented in the supplied evidence. Produce a comparison matrix on the first response: "
         "use columns for the selected documents and rows for Objective, Methodology, Data or criteria, Main findings, and Limitations. "
         "If a dimension is not supported for a document, write 'Not explicitly stated in the supplied evidence' instead of guessing. "
+        "For Limitations, report only limitations, omissions, missing data, uncertainty, or future-work constraints explicitly stated for that study; "
+        "do not infer a limitation from generic method properties, literature-review discussion, or statements that weighting methods can be subjective. "
         "Cite every populated factual cell with the exact source block that supports that document. "
         "After the table, add 2-4 concise key differences only when the supplied evidence supports them. "
+        "Every Key Differences bullet must cite source blocks from each document being contrasted; omit the bullet if both sides cannot be cited. "
         "Never replace the requested comparison with a list of excerpts."
     ),
     "workspace-summary": (
@@ -2250,6 +2253,234 @@ def _valid_workspace_comparison(text):
     return represented_dimensions >= 2
 
 
+def _comparison_hit_has_explicit_limitation_evidence(hit):
+    """Whether a hit explicitly contains limitation/omission evidence."""
+    content = re.sub(
+        r"\s+",
+        " ",
+        str(getattr(hit.item, "content", "") or ""),
+    ).lower()
+    heading = str(getattr(hit.item, "section_heading", "") or "").lower()
+
+    if any(term in heading for term in ("limitation", "limitations", "future work")):
+        return True
+
+    explicit_markers = (
+        "limitation",
+        "limitations",
+        "not considered",
+        "not included",
+        "did not consider",
+        "have not included",
+        "excluded from",
+        "lack of data",
+        "lack of reliable data",
+        "data were not available",
+        "data was not available",
+        "data unavailable",
+        "missing data",
+        "limited data",
+        "data limitation",
+        "data limitations",
+        "could not include",
+        "could not consider",
+        "unable to include",
+        "future work",
+        "further research",
+        "uncertainty",
+    )
+    return any(marker in content for marker in explicit_markers)
+
+
+def _comparison_table_document_ids(text, hits):
+    """Resolve comparison-table document columns to represented document ids."""
+    lines = [line.strip() for line in str(text or "").splitlines()]
+    divider_index = None
+
+    for index, line in enumerate(lines):
+        if index == 0 or "|" not in line:
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) >= 3 and all(
+            re.fullmatch(r":?-{3,}:?", cell or "")
+            for cell in cells
+        ):
+            divider_index = index
+            break
+
+    if divider_index is None:
+        return []
+
+    headers = [
+        cell.strip()
+        for cell in lines[divider_index - 1].strip("|").split("|")
+    ]
+    if len(headers) < 3:
+        return []
+
+    title_to_ids = {}
+    for hit in hits:
+        document = getattr(hit.item, "document", None)
+        title = str(
+            getattr(document, "display_title", "")
+            or getattr(hit.item, "source", "")
+            or ""
+        )
+        title_key = re.sub(r"[^a-z0-9]+", " ", title.lower()).strip()
+        document_id = str(
+            getattr(
+                hit.item,
+                "document_id",
+                getattr(document, "id", ""),
+            )
+            or ""
+        )
+        if title_key and document_id:
+            title_to_ids.setdefault(title_key, set()).add(document_id)
+
+    resolved = []
+    for header in headers[1:]:
+        header_key = re.sub(
+            r"[^a-z0-9]+",
+            " ",
+            header.lower(),
+        ).strip()
+        ids = title_to_ids.get(header_key, set())
+        resolved.append(next(iter(ids)) if len(ids) == 1 else "")
+
+    return resolved
+
+
+def _workspace_comparison_limitations_are_safe(text, hits):
+    """Reject inferred limitations and cross-document limitation citations."""
+    expected_document_ids = _comparison_table_document_ids(text, hits)
+
+    for line in str(text or "").splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            continue
+
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if not cells or cells[0].lower() != "limitations":
+            continue
+
+        limitation_cells = cells[1:]
+        if (
+            len(expected_document_ids) != len(limitation_cells)
+            or any(not document_id for document_id in expected_document_ids)
+        ):
+            return False
+
+        for index, cell in enumerate(limitation_cells):
+            normalized = cell.lower()
+            if (
+                not cell
+                or "not explicitly stated in the supplied evidence" in normalized
+            ):
+                continue
+
+            cited = cited_source_numbers(cell, len(hits))
+            if not cited:
+                return False
+
+            cited_document_ids = {
+                str(
+                    getattr(
+                        hits[number - 1].item,
+                        "document_id",
+                        getattr(
+                            getattr(
+                                hits[number - 1].item,
+                                "document",
+                                None,
+                            ),
+                            "id",
+                            "",
+                        ),
+                    )
+                    or ""
+                )
+                for number in cited
+            }
+            cited_document_ids.discard("")
+
+            if cited_document_ids != {expected_document_ids[index]}:
+                return False
+
+            if not any(
+                _comparison_hit_has_explicit_limitation_evidence(
+                    hits[number - 1]
+                )
+                for number in cited
+            ):
+                return False
+
+        return True
+
+    return False
+
+
+def _workspace_comparison_key_differences_are_cited(text, hits):
+    """Require every optional Key Differences bullet to cite both compared PDFs."""
+    lines = str(text or "").splitlines()
+    in_key_differences = False
+
+    for raw_line in lines:
+        stripped = raw_line.strip()
+        heading = re.sub(r"^#{1,6}\s*", "", stripped).strip().lower()
+
+        if heading.rstrip(":") == "key differences":
+            in_key_differences = True
+            continue
+
+        if not in_key_differences:
+            continue
+
+        if stripped.startswith("#"):
+            break
+
+        if not stripped:
+            continue
+
+        if not re.match(r"^(?:[-*+]\s+|\d+[.)]\s+)", stripped):
+            continue
+
+        cited = cited_source_numbers(stripped, len(hits))
+        if not cited:
+            return False
+
+        cited_documents = {
+            str(
+                getattr(
+                    hits[number - 1].item,
+                    "document_id",
+                    getattr(
+                        getattr(hits[number - 1].item, "document", None),
+                        "id",
+                        "",
+                    ),
+                )
+            )
+            for number in cited
+        }
+        cited_documents.discard("")
+
+        if len(cited_documents) < 2:
+            return False
+
+    return True
+
+
+def _workspace_comparison_integrity_is_safe(text, hits):
+    if not _valid_workspace_comparison(text):
+        return False
+    if not _workspace_comparison_limitations_are_safe(text, hits):
+        return False
+    if not _workspace_comparison_key_differences_are_cited(text, hits):
+        return False
+    return True
+
+
 def _response_schema(max_source=None):
     source_count = max(0, int(max_source or 0))
     source_properties = {
@@ -2612,6 +2843,18 @@ def generate_answer(question, hits, conversation_context=None, answer_mode="gene
                         structured,
                     )
                     continue
+
+                if (
+                    answer_mode == "workspace-comparison"
+                    and answer
+                    and not _workspace_comparison_integrity_is_safe(answer, hits)
+                ):
+                    logger.warning(
+                        "Groq workspace comparison contained an inferred limitation "
+                        "or uncited key difference; using the conservative grounded "
+                        "comparison fallback."
+                    )
+                    break
 
                 if answer and len(answer) >= 45:
                     cited = cited_source_numbers(answer, len(hits))
