@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">ScholarSync mark</title>
+  <desc id="desc">An open research document merged with a connected knowledge network.</desc>
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#123C8C"/>
+      <stop offset="55%" stop-color="#2457E6"/>
+      <stop offset="100%" stop-color="#6C39E8"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#19C5C0"/>
+      <stop offset="100%" stop-color="#275BFF"/>
+    </linearGradient>
+  </defs>
+  <path d="M18 28c14-8 27-7 39 2v76c-12-9-25-10-39-3V28Z" fill="#0B2B66"/>
+  <path d="M26 25c13-4 24-2 34 6v72c-10-7-21-9-34-5V25Z" fill="#FFFFFF" stroke="#123C8C" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M34 45h18M34 56h18M34 67h14" stroke="#8AA0C7" stroke-width="4" stroke-linecap="round"/>
+  <path d="M37 82c-4 0-7 3-7 7 0 5 4 8 9 8v-5c-2 0-4-1-4-3 0-1 1-2 3-2h3v-5h-4Zm16 0c-4 0-7 3-7 7 0 5 4 8 9 8v-5c-2 0-4-1-4-3 0-1 1-2 3-2h3v-5h-4Z" fill="#5A47EB"/>
+  <path d="M57 30c15-9 36-7 48 5 11 11 12 29 5 42-4 8-10 13-18 17l-8 12-5-9c-9 2-17 0-23-4V30Z" fill="url(#g1)"/>
+  <circle cx="93" cy="44" r="7" fill="#20C8C2"/>
+  <circle cx="80" cy="68" r="6" fill="#6335E8"/>
+  <circle cx="98" cy="88" r="7" fill="#2D7BFF"/>
+  <path d="M81 68c6-3 8-8 8-13 0-5 1-8 4-11M81 68c4 7 8 14 17 20" stroke="url(#g2)" stroke-width="6" fill="none" stroke-linecap="round"/>
+</svg>

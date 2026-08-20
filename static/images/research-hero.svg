@@ -1,0 +1,58 @@
+<svg width="560" height="400" viewBox="0 0 560 400" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+    <title id="title">Research papers with magnifying glass</title>
+    <desc id="desc">
+        A stack of research papers with citations and a magnifying glass.
+    </desc>
+
+    <!-- soft background -->
+    <ellipse cx="290" cy="335" rx="205" ry="34" fill="#5A1024" opacity="0.08"></ellipse>
+
+    <!-- back paper -->
+    <g transform="translate(130 58) rotate(4 150 130)">
+        <rect x="22" y="20" width="300" height="250" rx="14" fill="#EADCCD" stroke="#DCC7B4" stroke-width="2"></rect>
+    </g>
+
+    <!-- middle paper -->
+    <g transform="translate(115 42) rotate(1 150 130)">
+        <rect x="16" y="16" width="300" height="250" rx="14" fill="#F4E9DD" stroke="#E2D0BF" stroke-width="2"></rect>
+    </g>
+
+    <!-- front paper -->
+    <rect x="112" y="42" width="300" height="250" rx="14" fill="#FFF9F2" stroke="#DFCDBD" stroke-width="2"></rect>
+
+    <!-- bookmark -->
+    <path d="M355 42H384V105L369.5 93L355 105V42Z" fill="#C28A18"></path>
+
+    <!-- document lines -->
+    <g stroke="#B9AAA0" stroke-width="5" stroke-linecap="round">
+        <path d="M155 91H245"></path>
+        <path d="M155 116H357"></path>
+        <path d="M155 141H368"></path>
+        <path d="M155 166H335"></path>
+        <path d="M155 191H365"></path>
+        <path d="M155 216H315"></path>
+    </g>
+
+    <!-- citation quotation mark -->
+    <text x="333" y="258" fill="#C6B3A5" font-family="Georgia, serif" font-size="54" font-weight="700">
+        “
+    </text>
+
+    <!-- magnifying glass -->
+    <circle cx="214" cy="242" r="66" fill="#FFF9F2" fill-opacity="0.5" stroke="#5A1024" stroke-width="13"></circle>
+
+    <path d="M261 289L319 347" stroke="#5A1024" stroke-width="19" stroke-linecap="round"></path>
+
+    <path d="M260 289L319 347" stroke="#3F0B19" stroke-width="8" stroke-linecap="round"></path>
+
+    <!-- gold research sparkles -->
+    <g fill="#C28A18">
+        <circle cx="455" cy="105" r="5"></circle>
+        <circle cx="470" cy="172" r="3"></circle>
+        <circle cx="91" cy="120" r="4"></circle>
+
+        <path d="M448 137L453 148L464 153L453 158L448 169L443 158L432 153L443 148L448 137Z"></path>
+
+        <path d="M92 214L96 222L104 226L96 230L92 238L88 230L80 226L88 222L92 214Z"></path>
+    </g>
+</svg>

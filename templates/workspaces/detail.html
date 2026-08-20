@@ -1,92 +1,454 @@
 {% extends "base.html" %}
-{% block title %}{{ workspace.name }} - ScholarSync{% endblock %}
+
+{% block title %}
+{{ workspace.name }} - ScholarSync
+{% endblock %}
+
 
 {% block content %}
+
+
+<!-- ======================================================
+     WORKSPACE HEADER
+     ====================================================== -->
+
 <section class="shell workspace-head">
+
+
   <div>
-    <a class="back-link" href="{% url 'workspace-list' %}">← All workspaces</a>
-    <span class="eyebrow">Private workspace</span>
-    <h1>{{ workspace.name }}</h1>
-    <p>{{ workspace.description }}</p>
+
+    <a
+      class="back-link"
+      href="{% url 'workspace-list' %}"
+    >
+      ← All workspaces
+    </a>
+
+
+    <span class="eyebrow">
+      Private workspace
+    </span>
+
+
+    <h1>
+      {{ workspace.name }}
+    </h1>
+
+
+    <p>
+      {{ workspace.description }}
+    </p>
+
   </div>
+
+
+
+  <!-- Main actions -->
+
   <div class="button-row">
-    <a class="button button-secondary" href="{% url 'document-upload' workspace.id %}">Upload PDF</a>
-    <a class="button" href="{% url 'conversation-new' workspace.id %}">Start conversation</a>
+
+    <a
+      class="button button-secondary"
+      href="{% url 'document-upload' workspace.id %}"
+    >
+      Upload PDF
+    </a>
+
+
+    <a
+      class="button"
+      href="{% url 'conversation-new' workspace.id %}"
+    >
+      Start conversation
+    </a>
+
   </div>
+
 </section>
+
+
+
+<!-- ======================================================
+     WORKSPACE CONTENT
+     ====================================================== -->
 
 <section class="shell workspace-layout">
-  <div class="panel">
+
+
+  <!-- ====================================================
+       DOCUMENTS
+       ==================================================== -->
+
+  <div class="panel workspace-documents-panel">
+
+
     <div class="panel-head">
-      <h2>Documents</h2>
-      <span>{{ documents|length }} / 3</span>
+
+      <h2>
+        Documents
+      </h2>
+
+      <span class="document-count">
+        {{ documents|length }} / 3
+      </span>
+
     </div>
 
-    {% for document in documents %}
-      <article class="document-row">
-        <div class="document-badge">PDF</div>
-        <div class="grow">
-          <h3>{{ document.display_title }}</h3>
-          <p>{{ document.page_count }} pages · {{ document.get_processing_status_display }}</p>
+
+
+    <div class="workspace-document-list">
+
+
+      {% for document in documents %}
+
+
+        <article class="document-row">
+
+
+          <div class="document-badge">
+            PDF
+          </div>
+
+
+
+          <div class="grow">
+
+            <h3 title="{{ document.display_title }}">
+              {{ document.display_title }}
+            </h3>
+
+            <p>
+              {{ document.page_count }} pages
+              ·
+              {{ document.get_processing_status_display }}
+            </p>
+
+          </div>
+
+
+
+          <a
+            href="{% url 'document-view' document.id %}"
+            target="_blank"
+            rel="noopener"
+          >
+            Open
+          </a>
+
+
+
+          <form
+            method="post"
+            action="{% url 'document-delete' document.id %}"
+          >
+
+            {% csrf_token %}
+
+            <button
+              class="danger-link"
+              type="submit"
+            >
+              Delete
+            </button>
+
+          </form>
+
+        </article>
+
+
+
+      {% empty %}
+
+
+        <div class="compact-empty">
+
+          <p>
+            No papers uploaded yet.
+          </p>
+
+
+          <a href="{% url 'document-upload' workspace.id %}">
+            Upload the first PDF
+          </a>
+
         </div>
-        <a href="{% url 'document-view' document.id %}" target="_blank">Open</a>
-        <form method="post" action="{% url 'document-delete' document.id %}">
-          {% csrf_token %}
-          <button class="danger-link" type="submit">Delete</button>
-        </form>
-      </article>
-    {% empty %}
-      <div class="compact-empty">
-        <p>No papers uploaded yet.</p>
-        <a href="{% url 'document-upload' workspace.id %}">Upload the first PDF</a>
-      </div>
-    {% endfor %}
+
+
+      {% endfor %}
+
+    </div>
+
   </div>
 
-  <div class="panel">
-    {% if ready_documents|length > 1 %}
-      <div class="panel-head">
-        <h2>Compare papers</h2>
-      </div>
-      <p class="muted">
-        Select at least two ready papers. ScholarSync will prepare a focused comparison prompt using only those paper names.
-      </p>
 
-      <form method="post" action="{% url 'conversation-compare-new' workspace.id %}" class="stack-form comparison-form">
-        {% csrf_token %}
-        {% for document in ready_documents %}
-          <label class="document-row comparison-option">
-            <input type="checkbox" name="documents" value="{{ document.id }}">
-            <span class="document-badge">PDF</span>
-            <span class="grow">
-              <strong>{{ document.display_title }}</strong>
-              <span class="muted">{{ document.page_count }} pages</span>
-            </span>
-          </label>
-        {% endfor %}
-        <div class="button-row">
-          <button class="button button-secondary button-small" type="submit">Prepare comparison</button>
+
+  <!-- ====================================================
+       RESEARCH ACTIVITY
+       ==================================================== -->
+
+  <div class="panel workspace-activity-panel">
+
+
+    <!-- ==================================================
+         COMPARE PAPERS
+         ================================================== -->
+
+    {% if ready_documents|length > 1 %}
+
+      <section class="workspace-panel-section comparison-section">
+
+
+        <div class="panel-head">
+
+          <h2>
+            Compare papers
+          </h2>
+
         </div>
-      </form>
+
+
+
+        <p class="muted comparison-description">
+          Select at least two ready papers.
+          ScholarSync will prepare a focused comparison prompt
+          using only those paper names.
+        </p>
+
+
+
+        <form
+          method="post"
+          action="{% url 'conversation-compare-new' workspace.id %}"
+          class="stack-form comparison-form"
+        >
+
+          {% csrf_token %}
+
+
+
+          {% for document in ready_documents %}
+
+
+            <label class="document-row comparison-option">
+
+
+              <input
+                type="checkbox"
+                name="documents"
+                value="{{ document.id }}"
+              >
+
+
+              <span class="document-badge">
+                PDF
+              </span>
+
+
+              <span class="grow comparison-document-copy">
+
+                <strong title="{{ document.display_title }}">
+                  {{ document.display_title }}
+                </strong>
+
+                <span class="muted">
+                  {{ document.page_count }} pages
+                </span>
+
+              </span>
+
+            </label>
+
+
+          {% endfor %}
+
+
+
+          <div class="comparison-actions">
+
+            <button
+              class="button button-secondary button-small"
+              type="submit"
+            >
+              Prepare comparison
+            </button>
+
+          </div>
+
+        </form>
+
+      </section>
+
     {% endif %}
 
-    <div class="panel-head">
-      <h2>Recent conversations</h2>
-    </div>
-    {% for conversation in conversations %}
-      <a class="conversation-row" href="{% url 'conversation-detail' conversation.id %}">
-        <div>
-          <h3>{{ conversation.title }}</h3>
-          <p>{{ conversation.messages.count }} messages</p>
-        </div>
-        <span>Open →</span>
-      </a>
-    {% empty %}
-      <div class="compact-empty">
-        <p>No conversation yet.</p>
-        <a href="{% url 'conversation-new' workspace.id %}">Ask your first question</a>
+
+
+    <!-- ==================================================
+         RECENT CONVERSATIONS
+         ================================================== -->
+
+    <section class="workspace-panel-section conversations-section">
+
+
+      <div class="panel-head conversation-heading">
+
+
+        <h2>
+          Recent conversations
+        </h2>
+
+
+        {% if conversations %}
+
+          <span class="conversation-count">
+            {{ conversations|length }}
+          </span>
+
+        {% endif %}
+
       </div>
-    {% endfor %}
+
+
+
+      {% if conversations %}
+
+
+        <!-- ===============================================
+             FIRST 3 CONVERSATIONS
+             =============================================== -->
+
+        <div class="conversation-preview-list">
+
+
+          {% for conversation in conversations|slice:":3" %}
+
+
+            <a
+              class="conversation-row compact-conversation-row"
+              href="{% url 'conversation-detail' conversation.id %}"
+            >
+
+
+              <div class="conversation-copy">
+
+                <h3 title="{{ conversation.title }}">
+                  {{ conversation.title }}
+                </h3>
+
+                <p>
+                  {{ conversation.messages.count }}
+                  messages
+                </p>
+
+              </div>
+
+
+              <span class="conversation-open">
+                Open →
+              </span>
+
+            </a>
+
+
+          {% endfor %}
+
+        </div>
+
+
+
+        <!-- ===============================================
+             READ MORE
+             =============================================== -->
+
+        {% if conversations|length > 3 %}
+
+
+          <details class="conversation-more">
+
+
+            <summary>
+
+              <span>
+                Read more conversations
+              </span>
+
+              <span
+                class="read-more-icon"
+                aria-hidden="true"
+              >
+                ↓
+              </span>
+
+            </summary>
+
+
+
+            <div class="conversation-more-list">
+
+
+              {% for conversation in conversations|slice:"3:" %}
+
+
+                <a
+                  class="conversation-row compact-conversation-row"
+                  href="{% url 'conversation-detail' conversation.id %}"
+                >
+
+
+                  <div class="conversation-copy">
+
+                    <h3 title="{{ conversation.title }}">
+                      {{ conversation.title }}
+                    </h3>
+
+                    <p>
+                      {{ conversation.messages.count }}
+                      messages
+                    </p>
+
+                  </div>
+
+
+                  <span class="conversation-open">
+                    Open →
+                  </span>
+
+                </a>
+
+
+              {% endfor %}
+
+            </div>
+
+          </details>
+
+
+        {% endif %}
+
+
+
+      {% else %}
+
+
+        <div class="compact-empty">
+
+          <p>
+            No conversation yet.
+          </p>
+
+
+          <a href="{% url 'conversation-new' workspace.id %}">
+            Ask your first question
+          </a>
+
+        </div>
+
+
+      {% endif %}
+
+    </section>
+
   </div>
+
 </section>
+
 {% endblock %}
