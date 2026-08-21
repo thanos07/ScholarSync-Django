@@ -2293,3 +2293,725 @@ h3 {
         padding-inline: 14px;
     }
 }
+
+/* =========================================================
+   36. RESEARCH WORKSPACE — POPULATED STATE POLISH
+   ========================================================= */
+
+/*
+   The populated research screen needs slightly different proportions
+   from the empty state: enough room for paper titles on the left,
+   comfortable answer width in the center, and readable evidence on
+   the right.
+*/
+@media (min-width: 1051px) {
+    .research-shell {
+        grid-template-columns:
+            270px
+            minmax(0, 1fr)
+            320px;
+    }
+
+    .research-shell.sidebar-collapsed {
+        grid-template-columns:
+            minmax(0, 1fr)
+            320px;
+    }
+}
+
+.chat-panel {
+    min-width: 0;
+    background: var(--surface-white);
+}
+
+.message-stream {
+    min-width: 0;
+    padding: 24px;
+    scrollbar-gutter: stable;
+}
+
+.research-sidebar,
+.evidence-panel {
+    scrollbar-gutter: stable;
+}
+
+.research-sidebar h2,
+.evidence-panel h2 {
+    color: var(--primary-dark);
+}
+
+
+/* =========================================================
+   37. RESEARCH HEADER + CONTROLS
+   ========================================================= */
+
+.chat-head {
+    gap: 18px;
+    padding: 16px 20px;
+
+    background:
+        rgba(255, 250, 244, 0.94);
+
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.chat-head-title {
+    min-width: 0;
+    gap: 12px;
+}
+
+.chat-head-title > div {
+    min-width: 0;
+}
+
+.chat-head h1 {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    color: var(--primary-dark);
+    font-size: 1.08rem;
+    font-weight: 700;
+}
+
+.sidebar-toggle {
+    min-height: 38px;
+
+    padding: 8px 11px;
+
+    border: 1px solid var(--border);
+    border-radius: 11px;
+
+    background: var(--surface);
+
+    color: var(--primary);
+
+    box-shadow:
+        0 4px 12px rgba(72, 16, 30, 0.04);
+
+    transition:
+        background 0.18s ease,
+        border-color 0.18s ease,
+        color 0.18s ease,
+        transform 0.18s ease;
+}
+
+.sidebar-toggle:hover {
+    background: var(--primary-soft);
+    border-color: var(--border-strong);
+    color: var(--primary-dark);
+    transform: translateY(-1px);
+}
+
+.sidebar-toggle:focus-visible,
+.message-copy-button:focus-visible,
+.suggested-question:focus-visible {
+    outline: 3px solid rgba(189, 135, 23, 0.18);
+    outline-offset: 2px;
+}
+
+
+/* =========================================================
+   38. CHAT MESSAGES — READABILITY
+   ========================================================= */
+
+/*
+   User questions remain compact bubbles.
+   ScholarSync answers use the available center width so tables,
+   formulas and long research explanations are not unnecessarily
+   squeezed.
+*/
+.user-message {
+    max-width: 78%;
+
+    padding: 17px 19px;
+
+    background: var(--primary-soft);
+}
+
+.assistant-message {
+    width: 100%;
+    max-width: 100%;
+
+    padding: 20px 22px;
+
+    background: var(--surface);
+
+    border: 1px solid var(--border);
+    border-radius: 17px;
+    border-bottom-left-radius: 5px;
+
+    box-shadow:
+        0 7px 22px rgba(72, 16, 30, 0.045);
+}
+
+.message-role {
+    margin-bottom: 9px;
+
+    color: var(--primary);
+
+    font-size: 0.77rem;
+    letter-spacing: 0.01em;
+}
+
+.message-content {
+    min-width: 0;
+
+    color: var(--text);
+
+    font-size: 0.94rem;
+    line-height: 1.68;
+}
+
+.message-content p {
+    margin-bottom: 0.85rem;
+}
+
+.message-content ul,
+.message-content ol {
+    margin-top: 0.6rem;
+    margin-bottom: 0.9rem;
+    padding-left: 1.35rem;
+}
+
+.message-content li + li {
+    margin-top: 0.3rem;
+}
+
+.message-content h1,
+.message-content h2,
+.message-content h3,
+.message-content h4 {
+    color: var(--primary-dark);
+    line-height: 1.22;
+}
+
+.message-content h2,
+.message-content h3 {
+    margin-top: 0.4rem;
+    margin-bottom: 0.85rem;
+}
+
+.message-content blockquote {
+    border-left-color: var(--accent);
+
+    background: var(--surface-soft);
+
+    color: var(--muted);
+}
+
+.message-copy-button {
+    top: 12px;
+    right: 13px;
+
+    padding: 6px 9px;
+
+    border-color: var(--border);
+    border-radius: 8px;
+
+    background: rgba(255, 253, 249, 0.92);
+
+    color: var(--muted);
+}
+
+.message-copy-button:hover {
+    background: var(--surface-white);
+    border-color: var(--border-strong);
+    color: var(--primary);
+}
+
+
+/* =========================================================
+   39. GROUNDED COMPARISON TABLE
+   ========================================================= */
+
+/*
+   Markdown tables are rendered by app.js as .message-table inside
+   .message-table-wrap. The wrapper may scroll when a comparison has
+   many papers, but cell text itself should never collapse into
+   one-character-wide columns.
+*/
+.message-table-wrap {
+    width: 100%;
+    max-width: 100%;
+
+    margin: 16px 0 18px;
+
+    overflow-x: auto;
+    overflow-y: hidden;
+
+    background: var(--surface-white);
+
+    border: 1px solid var(--border);
+    border-radius: 16px;
+
+    box-shadow:
+        0 8px 22px rgba(61, 35, 28, 0.045);
+}
+
+.message-table {
+    width: 100%;
+    min-width: 700px;
+
+    border-collapse: separate;
+    border-spacing: 0;
+
+    table-layout: auto;
+
+    background: var(--surface-white);
+
+    font-size: 0.86rem;
+    line-height: 1.52;
+}
+
+.message-table th,
+.message-table td {
+    padding: 13px 14px;
+
+    vertical-align: top;
+    text-align: left;
+
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+
+    white-space: normal;
+
+    /*
+       Crucial for labels such as "Objective" and "Methodology":
+       do not split normal words into tiny fragments.
+    */
+    word-break: normal;
+    overflow-wrap: break-word;
+    hyphens: none;
+}
+
+.message-table th:last-child,
+.message-table td:last-child {
+    border-right: 0;
+}
+
+.message-table tr:last-child td {
+    border-bottom: 0;
+}
+
+
+/* Table header */
+
+.message-table thead th {
+    background: #f0dfe4;
+
+    color: var(--primary-dark);
+
+    font-weight: 800;
+}
+
+.message-table thead th:first-child {
+    width: 132px;
+    min-width: 132px;
+
+    background: var(--primary);
+
+    color: #ffffff;
+}
+
+
+/* Aspect column */
+
+.message-table tbody td:first-child {
+    width: 132px;
+    min-width: 132px;
+
+    background: #fbf0f3;
+
+    color: var(--primary-dark);
+
+    font-weight: 800;
+}
+
+
+/* Paper columns */
+
+.message-table th:not(:first-child),
+.message-table td:not(:first-child) {
+    min-width: 255px;
+}
+
+
+/* Easier scanning across long comparisons */
+
+.message-table tbody tr:nth-child(even) td:not(:first-child) {
+    background: rgba(247, 236, 223, 0.42);
+}
+
+.message-table tbody tr:hover td:not(:first-child) {
+    background: #fff7ee;
+}
+
+
+/* Avoid awkward paragraph margins inside generated table cells */
+
+.message-table td p,
+.message-table th p {
+    margin: 0;
+}
+
+.message-table td ul,
+.message-table td ol {
+    margin: 0.25rem 0 0.25rem 1rem;
+    padding-left: 0.8rem;
+}
+
+
+/* Nicer scrollbar for genuinely wide multi-paper tables */
+
+.message-table-wrap::-webkit-scrollbar {
+    height: 8px;
+}
+
+.message-table-wrap::-webkit-scrollbar-track {
+    background: var(--surface-soft);
+}
+
+.message-table-wrap::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 999px;
+}
+
+.message-table-wrap::-webkit-scrollbar-thumb:hover {
+    background: #c7a991;
+}
+
+
+/* =========================================================
+   40. CITATIONS BELOW ANSWERS
+   ========================================================= */
+
+.citation-list {
+    margin-top: 17px;
+    padding-top: 14px;
+
+    border-top: 1px solid var(--border);
+
+    gap: 8px;
+}
+
+.citation-list > b {
+    margin-bottom: 2px;
+
+    color: var(--primary-dark);
+
+    font-size: 0.79rem;
+}
+
+.citation-list a {
+    padding: 8px 10px;
+
+    background: var(--surface-soft);
+
+    border: 1px solid transparent;
+    border-radius: 9px;
+
+    color: var(--primary);
+
+    line-height: 1.45;
+
+    overflow-wrap: anywhere;
+
+    transition:
+        background 0.16s ease,
+        border-color 0.16s ease;
+}
+
+.citation-list a:hover {
+    background: var(--primary-soft);
+    border-color: var(--border);
+
+    text-decoration: none;
+}
+
+
+/* Citation-verification states */
+
+.citation-verification {
+    align-self: flex-start;
+
+    display: inline-flex;
+    align-items: center;
+
+    min-height: 28px;
+
+    padding: 6px 10px !important;
+
+    border-radius: 999px !important;
+
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.citation-verification-supported,
+.citation-verification-valid {
+    background: #e4efe5 !important;
+    color: #3d6547 !important;
+}
+
+.citation-verification-partial {
+    background: #f6e8bf !important;
+    color: #846116 !important;
+}
+
+.citation-verification-review {
+    background: #f4dddd !important;
+    color: #8e3e47 !important;
+}
+
+
+/* =========================================================
+   41. EVIDENCE VIEWER — SOURCE CARDS
+   ========================================================= */
+
+.evidence-panel {
+    background:
+        linear-gradient(
+            180deg,
+            #f8eee5 0%,
+            var(--surface-soft) 100%
+        );
+}
+
+.evidence-card {
+    padding: 16px;
+
+    margin-bottom: 13px;
+
+    background: var(--surface-white);
+
+    border: 1px solid var(--border);
+    border-radius: 16px;
+
+    box-shadow:
+        0 7px 20px rgba(72, 16, 30, 0.04);
+}
+
+.evidence-card > div {
+    display: flex;
+    align-items: center;
+
+    gap: 9px;
+
+    margin-bottom: 10px;
+}
+
+.evidence-card > div span {
+    min-width: 32px;
+    min-height: 30px;
+
+    display: inline-grid;
+    place-items: center;
+
+    padding: 4px 8px;
+
+    background: var(--primary-soft);
+
+    border-radius: 9px;
+
+    color: var(--primary);
+
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.evidence-card > div b {
+    color: var(--primary-dark);
+
+    font-size: 0.9rem;
+}
+
+.evidence-card p {
+    margin: 0 0 12px;
+
+    color: var(--text);
+
+    font-size: 0.8rem;
+    line-height: 1.6;
+}
+
+.evidence-card a {
+    display: inline-block;
+
+    margin-bottom: 9px;
+
+    color: var(--primary);
+
+    font-size: 0.76rem;
+    font-weight: 800;
+}
+
+.evidence-card small {
+    display: block;
+
+    color: var(--muted);
+
+    font-size: 0.71rem;
+    line-height: 1.5;
+
+    overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+   42. COMPOSER POLISH
+   ========================================================= */
+
+.composer {
+    gap: 11px;
+
+    padding: 14px 16px;
+
+    background:
+        rgba(255, 250, 244, 0.97);
+
+    border-top-color: var(--border);
+
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.composer textarea {
+    min-height: 60px;
+
+    padding: 12px 14px;
+
+    background: var(--surface-white);
+
+    border-radius: 12px;
+
+    line-height: 1.5;
+}
+
+.composer .button {
+    min-width: 150px;
+    min-height: 48px;
+}
+
+
+/* =========================================================
+   43. RESPONSIVE RESEARCH POLISH
+   ========================================================= */
+
+@media (max-width: 1250px) and (min-width: 1051px) {
+    .research-shell {
+        grid-template-columns:
+            250px
+            minmax(0, 1fr)
+            300px;
+    }
+
+    .research-shell.sidebar-collapsed {
+        grid-template-columns:
+            minmax(0, 1fr)
+            300px;
+    }
+
+    .message-stream {
+        padding: 20px;
+    }
+
+    .message-table thead th:first-child,
+    .message-table tbody td:first-child {
+        width: 120px;
+        min-width: 120px;
+    }
+
+    .message-table th:not(:first-child),
+    .message-table td:not(:first-child) {
+        min-width: 235px;
+    }
+}
+
+@media (max-width: 1050px) {
+    /*
+       app.css already hides the evidence viewer at this breakpoint.
+       Keep the conversation area comfortable after that transition.
+    */
+    .assistant-message {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .message-table {
+        min-width: 680px;
+    }
+}
+
+@media (max-width: 720px) {
+    .message-stream {
+        padding: 16px;
+    }
+
+    .user-message {
+        max-width: 92%;
+    }
+
+    .assistant-message {
+        padding: 17px;
+    }
+
+    .message-content {
+        font-size: 0.91rem;
+    }
+
+    .message-table {
+        min-width: 650px;
+        font-size: 0.82rem;
+    }
+
+    .message-table th,
+    .message-table td {
+        padding: 11px 12px;
+    }
+
+    .message-table thead th:first-child,
+    .message-table tbody td:first-child {
+        width: 112px;
+        min-width: 112px;
+    }
+
+    .composer {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .composer .button {
+        width: 100%;
+        min-height: 44px;
+    }
+
+    .chat-head h1 {
+        white-space: normal;
+        display: -webkit-box;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+    }
+}
+
+@media (max-width: 520px) {
+    .message-stream {
+        padding: 12px;
+    }
+
+    .assistant-message {
+        padding: 15px;
+    }
+
+    .message-table {
+        min-width: 620px;
+    }
+
+    .evidence-card {
+        padding: 14px;
+    }
+}
