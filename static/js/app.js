@@ -51,48 +51,122 @@
       .replaceAll("'", "&#039;");
   }
 
-  function inlineMarkdown(value) {
-    const protectedValues = [];
-    const protect = (raw, html) => {
-      const token = `SCHOLARSYNCPROTECTED${protectedValues.length}TOKEN`;
-      protectedValues.push({ token, html });
-      return token;
-    };
+function inlineMarkdown(value) {
+  const protectedValues = [];
 
-    let source = String(value ?? "");
+  const protect = (raw, html) => {
+    const token = `SCHOLARSYNCPROTECTED${protectedValues.length}TOKEN`;
+    protectedValues.push({ token, html });
+    return token;
+  };
 
-    // Protect TeX before applying Markdown emphasis. Display delimiters can
-    // appear inside a table cell; convert them to inline delimiters there so
-    // KaTeX can render the expression without breaking the table layout.
-    source = source.replace(/\$\$([\s\S]+?)\$\$/g, (_, formula) => {
-      const wrapped = `\\(${formula.trim()}\\)`;
-      return protect(wrapped, `<span class="math-inline">${escapeHtml(wrapped)}</span>`);
-    });
-    source = source.replace(/\\\[([\s\S]+?)\\\]/g, (_, formula) => {
-      const wrapped = `\\(${formula.trim()}\\)`;
-      return protect(wrapped, `<span class="math-inline">${escapeHtml(wrapped)}</span>`);
-    });
-    source = source.replace(/\\\((.+?)\\\)/g, (match) =>
-      protect(match, `<span class="math-inline">${escapeHtml(match)}</span>`)
+  let source = String(value ?? "");
+
+  // Protect TeX before applying Markdown emphasis.
+  // Display delimiters can appear inside a table cell;
+  // convert them to inline delimiters there so KaTeX
+  // can render the expression without breaking the table layout.
+  source = source.replace(/\$\$([\s\S]+?)\$\$/g, (_, formula) => {
+    const wrapped = `\\(${formula.trim()}\\)`;
+    return protect(
+      wrapped,
+      `<span class="math-inline">${escapeHtml(wrapped)}</span>`
     );
-    source = source.replace(/(^|[^$])\$([^$\n]+?)\$(?!\$)/g, (match, prefix, formula) =>
-      `${prefix}${protect(`$${formula}$`, `<span class="math-inline">${escapeHtml(`$${formula}$`)}</span>`)}`
-    );
-    source = source.replace(/`([^`]+)`/g, (_, code) =>
-      protect(code, `<code>${escapeHtml(code)}</code>`)
-    );
+  });
 
-    let text = escapeHtml(source);
-    text = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    text = text.replace(/__(.+?)__/g, "<strong>$1</strong>");
-    text = text.replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, "$1<em>$2</em>");
-    text = text.replace(/(^|[^_])_([^_\n]+?)_(?!_)/g, "$1<em>$2</em>");
+  source = source.replace(/\\\[([\s\S]+?)\\\]/g, (_, formula) => {
+    const wrapped = `\\(${formula.trim()}\\)`;
+    return protect(
+      wrapped,
+      `<span class="math-inline">${escapeHtml(wrapped)}</span>`
+    );
+  });
 
-    protectedValues.forEach(({ token, html }) => {
-      text = text.replaceAll(token, html);
-    });
-    return text;
-  }
+  source = source.replace(/\\\((.+?)\\\)/g, (match) =>
+    protect(
+      match,
+      `<span class="math-inline">${escapeHtml(match)}</span>`
+    )
+  );
+
+  source = source.replace(
+    /(^|[^$])\$([^$\n]+?)\$(?!\$)/g,
+    (match, prefix, formula) =>
+      `${prefix}${protect(
+        `$${formula}$`,
+        `<span class="math-inline">${escapeHtml(`$${formula}$`)}</span>`
+      )}`
+  );
+
+  source = source.replace(/`([^`]+)`/g, (_, code) =>
+    protect(
+      code,
+      `<code>${escapeHtml(code)}</code>`
+    )
+  );
+
+  let text = escapeHtml(source);
+
+  // ---------------------------------------------------------
+  // Markdown emphasis
+  // ---------------------------------------------------------
+
+  // Normal **bold**
+  text = text.replace(
+    /\*\*(.+?)\*\*/g,
+    "<strong>$1</strong>"
+  );
+
+  /*
+    IMPORTANT FIX:
+
+    Treat __bold__ as Markdown only when the underscores
+    behave like real Markdown delimiters.
+
+    This prevents filenames / identifiers such as:
+
+      44_Songkhla, Thailand_GIS_AHP_2019
+      PV_site_suitability_2026
+
+    from losing underscores.
+  */
+  text = text.replace(
+    /(^|[\s([{>])__([^_\n]+?)__(?=$|[\s.,!?;:)\]}>])/g,
+    "$1<strong>$2</strong>"
+  );
+
+  // Normal *italic*
+  text = text.replace(
+    /(^|[^*])\*([^*\n]+?)\*(?!\*)/g,
+    "$1<em>$2</em>"
+  );
+
+  /*
+    IMPORTANT FIX:
+
+    Treat _italic_ as Markdown only when the opening
+    underscore occurs at a natural text boundary.
+
+    So this still works:
+
+      _important text_
+
+    but this remains untouched:
+
+      44_Songkhla, Thailand_GIS_AHP_2019
+  */
+  text = text.replace(
+    /(^|[\s([{>])_([^_\n]+?)_(?=$|[\s.,!?;:)\]}>])/g,
+    "$1<em>$2</em>"
+  );
+
+  // Restore protected TeX / code.
+  protectedValues.forEach(({ token, html }) => {
+    text = text.replaceAll(token, html);
+  });
+
+  return text;
+}
 
   function renderMarkdown(value) {
     const lines = String(value ?? "").replace(/\r\n?/g, "\n").split("\n");
