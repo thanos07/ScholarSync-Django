@@ -6,7 +6,7 @@ from pathlib import Path
 import reportlab
 from django.utils import timezone
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -25,12 +25,33 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-PLUM = colors.HexColor("#5A304D")
-STONE = colors.HexColor("#F3F1F2")
-INK = colors.HexColor("#292327")
-MUTED = colors.HexColor("#6B6268")
-BORDER = colors.HexColor("#D8D1D6")
-FORMULA_BG = colors.HexColor("#F7F5F6")
+# ScholarSync editorial PDF palette.
+PLUM = colors.HexColor("#641328")
+PLUM_DARK = colors.HexColor("#48101E")
+
+STONE = colors.HexColor("#FBF2E9")
+SURFACE = colors.HexColor("#FFFDF9")
+
+ROSE = colors.HexColor("#F2DFE4")
+ROSE_SOFT = colors.HexColor("#FBF0F3")
+
+GOLD = colors.HexColor("#BD8717")
+GOLD_SOFT = colors.HexColor("#F4E5BF")
+
+INK = colors.HexColor("#332725")
+MUTED = colors.HexColor("#786D66")
+BORDER = colors.HexColor("#E3CFBD")
+
+SUCCESS_BG = colors.HexColor("#E4EFE5")
+SUCCESS = colors.HexColor("#3D6547")
+
+PARTIAL_BG = colors.HexColor("#F6E8BF")
+PARTIAL = colors.HexColor("#846116")
+
+REVIEW_BG = colors.HexColor("#F4DDDD")
+REVIEW = colors.HexColor("#8E3E47")
+
+FORMULA_BG = colors.HexColor("#FBF2E9")
 
 
 def _register_formula_font():
@@ -133,6 +154,34 @@ def _pdf_safe_text(value):
     for source, target in replacements.items():
         text = text.replace(source, target)
     return text
+
+
+def _verification_presentation(status):
+    """Return label and colors for a citation verification status."""
+    status = str(status or "").upper()
+
+    mapping = {
+        "SUPPORTED": ("Strong evidence match", SUCCESS_BG, "#3D6547"),
+        "PARTIAL": ("Partial evidence match", PARTIAL_BG, "#846116"),
+        "REVIEW": ("Needs review", REVIEW_BG, "#8E3E47"),
+        "VALID": ("Supported", SUCCESS_BG, "#3D6547"),
+        "UNCHECKED": ("Not checked", STONE, "#786D66"),
+    }
+
+    return mapping.get(
+        status,
+        ("Not checked", STONE, "#786D66"),
+    )
+
+
+def _truncate_pdf_excerpt(value, limit=300):
+    """Keep evidence cards compact without changing stored evidence."""
+    text = _pdf_safe_text(value).strip()
+
+    if len(text) <= limit:
+        return text
+
+    return text[: limit - 3].rstrip() + "..."
 
 
 def _latex_to_ascii(value):
@@ -497,10 +546,36 @@ def _inline_markup(value):
     )
 
     text = escape(raw)
-    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
-    text = re.sub(r"__(.+?)__", r"<b>\1</b>", text)
-    text = re.sub(r"(^|[^*])\*([^*\n]+?)\*(?!\*)", r"\1<i>\2</i>", text)
-    text = re.sub(r"(^|[^_])_([^_\n]+?)_(?!_)", r"\1<i>\2</i>", text)
+
+    # Normal **bold**.
+    text = re.sub(
+        r"\*\*(.+?)\*\*",
+        r"<b>\1</b>",
+        text,
+    )
+
+    # __bold__ only when underscores act as Markdown delimiters, not as
+    # separators inside filenames / identifiers.
+    text = re.sub(
+        r"(^|[\s([{>])__([^_\n]+?)__(?=$|[\s.,!?;:)\]}>])",
+        r"\1<b>\2</b>",
+        text,
+    )
+
+    # Normal *italic*.
+    text = re.sub(
+        r"(^|[^*])\*([^*\n]+?)\*(?!\*)",
+        r"\1<i>\2</i>",
+        text,
+    )
+
+    # _italic_ only at natural text boundaries. This preserves filenames such
+    # as 44_Songkhla, Thailand_GIS_AHP_2019.
+    text = re.sub(
+        r"(^|[\s([{>])_([^_\n]+?)_(?=$|[\s.,!?;:)\]}>])",
+        r"\1<i>\2</i>",
+        text,
+    )
 
     for token, markup in protected:
         text = text.replace(escape(token), markup).replace(token, markup)
@@ -546,6 +621,24 @@ def _markdown_flowables(value, styles, available_width):
             index += 1
             continue
 
+        # Comparison-grounding note: render it as a compact evidence callout
+        # instead of leaving it as an isolated italic paragraph. Generated
+        # comparison notes are sometimes wrapped in Markdown emphasis, so
+        # normalize only those outer markers before checking the prefix.
+        note_candidate = re.sub(r"^[*_]+|[*_]+$", "", line).strip()
+        if note_candidate.lower().startswith(
+            "this comparison uses only the retrieved passages"
+        ):
+            flowables.append(
+                Paragraph(
+                    _inline_markup(note_candidate),
+                    styles["EvidenceNote"],
+                )
+            )
+            flowables.append(Spacer(1, 6))
+            index += 1
+            continue
+
         # Display formulas can span several Markdown lines.
         if line.startswith("$$") or line.startswith("\\["):
             dollar = line.startswith("$$")
@@ -583,25 +676,91 @@ def _markdown_flowables(value, styles, available_width):
                 index += 1
 
             column_count = max(1, len(headers))
-            normalized_headers = [header.strip().lower() for header in headers]
-            formula_table = "formula" in normalized_headers and "symbols" in normalized_headers
-            if formula_table and column_count == 4:
-                col_widths = [available_width * 0.07, available_width * 0.45, available_width * 0.37, available_width * 0.11]
-            else:
-                col_widths = [available_width / column_count] * column_count
-            table_data = [
-                [Paragraph(_inline_markup(cell), styles["TableHeader"]) for cell in headers]
+            normalized_headers = [
+                header.strip().lower()
+                for header in headers
             ]
-            for row in rows:
-                table_data.append(
-                    [
-                        Paragraph(
-                            _inline_markup(row[cell_index] if cell_index < len(row) else ""),
-                            styles["TableCell"],
-                        )
-                        for cell_index in range(column_count)
-                    ]
+
+            formula_table = (
+                "formula" in normalized_headers
+                and "symbols" in normalized_headers
+            )
+
+            comparison_table = (
+                column_count >= 3
+                and normalized_headers
+                and normalized_headers[0] == "aspect"
+            )
+
+            if formula_table and column_count == 4:
+                col_widths = [
+                    available_width * 0.07,
+                    available_width * 0.45,
+                    available_width * 0.37,
+                    available_width * 0.11,
+                ]
+            elif comparison_table:
+                aspect_ratio = 0.18 if column_count <= 3 else 0.16
+                aspect_width = available_width * aspect_ratio
+                remaining_width = available_width - aspect_width
+                paper_width = remaining_width / (column_count - 1)
+                col_widths = [
+                    aspect_width,
+                    *[paper_width for _ in range(column_count - 1)],
+                ]
+            else:
+                col_widths = [
+                    available_width / column_count
+                    for _ in range(column_count)
+                ]
+
+            if comparison_table:
+                header_row = [
+                    Paragraph(
+                        _inline_markup(headers[0]),
+                        styles["TableHeaderInverse"],
+                    )
+                ]
+                header_row.extend(
+                    Paragraph(
+                        _inline_markup(cell),
+                        styles["TableHeader"],
+                    )
+                    for cell in headers[1:]
                 )
+            else:
+                header_row = [
+                    Paragraph(
+                        _inline_markup(cell),
+                        styles["TableHeader"],
+                    )
+                    for cell in headers
+                ]
+
+            table_data = [header_row]
+
+            for row in rows:
+                rendered_row = []
+
+                for cell_index in range(column_count):
+                    value = (
+                        row[cell_index]
+                        if cell_index < len(row)
+                        else ""
+                    )
+                    style_name = (
+                        "AspectCell"
+                        if comparison_table and cell_index == 0
+                        else "TableCell"
+                    )
+                    rendered_row.append(
+                        Paragraph(
+                            _inline_markup(value),
+                            styles[style_name],
+                        )
+                    )
+
+                table_data.append(rendered_row)
 
             table = LongTable(
                 table_data,
@@ -610,22 +769,46 @@ def _markdown_flowables(value, styles, available_width):
                 hAlign="LEFT",
                 splitByRow=1,
             )
-            table.setStyle(
-                TableStyle(
+
+            table_commands = [
+                ("TEXTCOLOR", (0, 0), (-1, -1), INK),
+                ("GRID", (0, 0), (-1, -1), 0.45, BORDER),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]
+
+            if comparison_table:
+                table_commands.extend(
                     [
-                        ("BACKGROUND", (0, 0), (-1, 0), STONE),
-                        ("TEXTCOLOR", (0, 0), (-1, -1), INK),
-                        ("GRID", (0, 0), (-1, -1), 0.45, BORDER),
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                        ("TOPPADDING", (0, 0), (-1, -1), 5),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#FBFAFB")]),
+                        ("BACKGROUND", (0, 0), (0, 0), PLUM),
+                        ("BACKGROUND", (1, 0), (-1, 0), ROSE),
+                        ("BACKGROUND", (0, 1), (0, -1), ROSE_SOFT),
+                        (
+                            "ROWBACKGROUNDS",
+                            (1, 1),
+                            (-1, -1),
+                            [SURFACE, colors.HexColor("#FFF9F3")],
+                        ),
                     ]
                 )
-            )
-            flowables.extend([table, Spacer(1, 8)])
+            else:
+                table_commands.extend(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), ROSE),
+                        (
+                            "ROWBACKGROUNDS",
+                            (0, 1),
+                            (-1, -1),
+                            [SURFACE, colors.HexColor("#FFF9F3")],
+                        ),
+                    ]
+                )
+
+            table.setStyle(TableStyle(table_commands))
+            flowables.extend([table, Spacer(1, 10)])
             continue
 
         heading = re.match(r"^(#{1,4})\s+(.+)$", line)
@@ -700,9 +883,33 @@ def _format_generated(value):
 
 def _draw_footer(canvas, doc):
     canvas.saveState()
-    canvas.setFont("Helvetica", 8)
+
+    page_width, page_height = doc.pagesize
+    left = 18 * mm
+    right = page_width - (18 * mm)
+
+    if doc.page > 1:
+        canvas.setFont("Helvetica-Bold", 7.5)
+        canvas.setFillColor(PLUM)
+        canvas.drawString(left, page_height - (10 * mm), "ScholarSync")
+
+        canvas.setFont("Helvetica", 7.5)
+        canvas.setFillColor(MUTED)
+        canvas.drawRightString(
+            right,
+            page_height - (10 * mm),
+            "Research conversation",
+        )
+
+    canvas.setStrokeColor(BORDER)
+    canvas.setLineWidth(0.4)
+    canvas.line(left, 13 * mm, right, 13 * mm)
+
+    canvas.setFont("Helvetica", 7.5)
     canvas.setFillColor(MUTED)
-    canvas.drawCentredString(A4[0] / 2, 10 * mm, f"ScholarSync - Page {doc.page}")
+    canvas.drawString(left, 8 * mm, "ScholarSync - Read. Ask. Cite.")
+    canvas.drawRightString(right, 8 * mm, f"Page {doc.page}")
+
     canvas.restoreState()
 
 
@@ -710,19 +917,281 @@ def build_conversation_pdf(conversation, messages):
     output = BytesIO()
     styles = getSampleStyleSheet()
 
-    styles.add(ParagraphStyle(name="Brand", parent=styles["Title"], textColor=PLUM, fontSize=22, leading=26, alignment=TA_CENTER, spaceAfter=4))
-    styles.add(ParagraphStyle(name="Meta", parent=styles["Normal"], textColor=MUTED, fontSize=9, leading=13, alignment=TA_CENTER))
-    styles.add(ParagraphStyle(name="Role", parent=styles["Normal"], fontName="Helvetica-Bold", textColor=PLUM, fontSize=10.5, leading=13, spaceBefore=10, spaceAfter=7, keepWithNext=True))
-    styles.add(ParagraphStyle(name="UserMessage", parent=styles["BodyText"], textColor=INK, fontSize=10, leading=15, backColor=STONE, borderColor=BORDER, borderWidth=0.7, borderPadding=10, spaceAfter=8, splitLongWords=True))
-    styles.add(ParagraphStyle(name="Body", parent=styles["BodyText"], textColor=INK, fontSize=9.6, leading=14.4, spaceAfter=6, splitLongWords=True))
-    styles.add(ParagraphStyle(name="Formula", parent=styles["BodyText"], fontName=FORMULA_FONT, textColor=INK, fontSize=10.2, leading=15.2, backColor=FORMULA_BG, borderColor=BORDER, borderWidth=0.6, borderPadding=9, leftIndent=3, rightIndent=3, alignment=TA_CENTER, splitLongWords=True, spaceBefore=2, spaceAfter=2))
-    styles.add(ParagraphStyle(name="Quote", parent=styles["Body"], textColor=MUTED, leftIndent=10, borderColor=PLUM, borderWidth=1.3, borderPadding=7, backColor=STONE))
-    styles.add(ParagraphStyle(name="SourceHeading", parent=styles["Normal"], fontName="Helvetica-Bold", textColor=PLUM, fontSize=9.2, leading=12, spaceBefore=7, spaceAfter=4, keepWithNext=True))
-    styles.add(ParagraphStyle(name="SourceLine", parent=styles["Normal"], textColor=MUTED, fontSize=8.3, leading=11.5, leftIndent=8, spaceAfter=2.5))
-    styles.add(ParagraphStyle(name="TableHeader", parent=styles["Normal"], fontName="Helvetica-Bold", textColor=PLUM, fontSize=7.1, leading=9.4, splitLongWords=True))
-    styles.add(ParagraphStyle(name="TableCell", parent=styles["Normal"], textColor=INK, fontSize=6.9, leading=9.2, splitLongWords=True))
-    for level, size in ((1, 14), (2, 12.2), (3, 11), (4, 10.2)):
-        styles.add(ParagraphStyle(name=f"MarkdownH{level}", parent=styles["Normal"], fontName="Helvetica-Bold", textColor=INK, fontSize=size, leading=size + 3, spaceBefore=8, spaceAfter=5, keepWithNext=True))
+    # Brand / report hierarchy
+    styles.add(
+        ParagraphStyle(
+            name="Brand",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            textColor=PLUM_DARK,
+            fontSize=20,
+            leading=22,
+            spaceAfter=1,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="Tagline",
+            parent=styles["Normal"],
+            textColor=MUTED,
+            fontSize=8,
+            leading=10,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="HeaderKicker",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            textColor=GOLD,
+            fontSize=7.2,
+            leading=9,
+            alignment=TA_RIGHT,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="ConversationEyebrow",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            textColor=PLUM,
+            fontSize=7.3,
+            leading=9,
+            spaceBefore=3,
+            spaceAfter=5,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="ConversationTitle",
+            parent=styles["Heading1"],
+            fontName="Helvetica-Bold",
+            textColor=PLUM_DARK,
+            fontSize=18,
+            leading=22,
+            spaceAfter=7,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="Meta",
+            parent=styles["Normal"],
+            textColor=MUTED,
+            fontSize=8.3,
+            leading=11,
+        )
+    )
+
+    # Conversation content
+    styles.add(
+        ParagraphStyle(
+            name="Role",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            textColor=PLUM,
+            fontSize=7.5,
+            leading=9,
+            spaceBefore=8,
+            spaceAfter=6,
+            keepWithNext=True,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="UserMessage",
+            parent=styles["BodyText"],
+            textColor=INK,
+            fontSize=9.7,
+            leading=14.5,
+            spaceAfter=0,
+            splitLongWords=True,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="Body",
+            parent=styles["BodyText"],
+            textColor=INK,
+            fontSize=9.4,
+            leading=14.1,
+            spaceAfter=6,
+            splitLongWords=True,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="Formula",
+            parent=styles["BodyText"],
+            fontName=FORMULA_FONT,
+            textColor=INK,
+            fontSize=10.2,
+            leading=15.2,
+            backColor=FORMULA_BG,
+            borderColor=BORDER,
+            borderWidth=0.6,
+            borderPadding=9,
+            leftIndent=3,
+            rightIndent=3,
+            alignment=TA_CENTER,
+            splitLongWords=True,
+            spaceBefore=3,
+            spaceAfter=4,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="Quote",
+            parent=styles["Body"],
+            textColor=MUTED,
+            leftIndent=10,
+            borderColor=GOLD,
+            borderWidth=1.3,
+            borderPadding=7,
+            backColor=STONE,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="EvidenceNote",
+            parent=styles["Normal"],
+            textColor=MUTED,
+            fontSize=8.3,
+            leading=11.8,
+            backColor=GOLD_SOFT,
+            borderColor=GOLD,
+            borderWidth=0.7,
+            borderPadding=8,
+            spaceBefore=2,
+            spaceAfter=4,
+        )
+    )
+
+    # Tables
+    styles.add(
+        ParagraphStyle(
+            name="TableHeader",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            textColor=PLUM_DARK,
+            fontSize=8.5,
+            leading=11,
+            splitLongWords=True,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="TableHeaderInverse",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            textColor=colors.white,
+            fontSize=8.5,
+            leading=11,
+            splitLongWords=True,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="AspectCell",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            textColor=PLUM_DARK,
+            fontSize=8.4,
+            leading=11.2,
+            splitLongWords=True,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="TableCell",
+            parent=styles["Normal"],
+            textColor=INK,
+            fontSize=8.2,
+            leading=11.5,
+            splitLongWords=True,
+        )
+    )
+
+    # Evidence
+    styles.add(
+        ParagraphStyle(
+            name="SourceHeading",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            textColor=PLUM,
+            fontSize=7.5,
+            leading=10,
+            spaceBefore=8,
+            spaceAfter=2,
+            keepWithNext=True,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="EvidenceSubtitle",
+            parent=styles["Normal"],
+            textColor=MUTED,
+            fontSize=7.7,
+            leading=10,
+            spaceAfter=7,
+            keepWithNext=True,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="SourceTitle",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            textColor=PLUM_DARK,
+            fontSize=8.5,
+            leading=11,
+            spaceAfter=2,
+            splitLongWords=True,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="SourceMeta",
+            parent=styles["Normal"],
+            textColor=MUTED,
+            fontSize=7.6,
+            leading=9.8,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="SourceExcerpt",
+            parent=styles["Normal"],
+            textColor=INK,
+            fontSize=7.9,
+            leading=11.1,
+            splitLongWords=True,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="VerificationPill",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=6.9,
+            leading=8.6,
+            alignment=TA_CENTER,
+        )
+    )
+
+    for level, size in ((1, 14), (2, 12.5), (3, 11.2), (4, 10.3)):
+        styles.add(
+            ParagraphStyle(
+                name=f"MarkdownH{level}",
+                parent=styles["Normal"],
+                fontName="Helvetica-Bold",
+                textColor=PLUM_DARK,
+                fontSize=size,
+                leading=size + 3,
+                spaceBefore=8,
+                spaceAfter=5,
+                keepWithNext=True,
+            )
+        )
 
     doc = SimpleDocTemplate(
         output,
@@ -732,71 +1201,260 @@ def build_conversation_pdf(conversation, messages):
         topMargin=18 * mm,
         bottomMargin=18 * mm,
         title=conversation.title,
+        author="ScholarSync",
+        subject="Evidence-grounded research conversation",
         allowSplitting=True,
     )
     available_width = A4[0] - doc.leftMargin - doc.rightMargin
 
-    story = [
+    header_left = [
         Paragraph("ScholarSync", styles["Brand"]),
-        Paragraph("Evidence-grounded research conversation", styles["Meta"]),
-        Spacer(1, 10),
+        Paragraph("Read. Ask. Cite.", styles["Tagline"]),
     ]
-    meta = [
-        ["Conversation", escape(_pdf_safe_text(conversation.title))],
-        ["Workspace", escape(_pdf_safe_text(conversation.workspace.name))],
-        ["Generated", _format_generated(getattr(conversation, "updated_at", None))],
-    ]
-    meta_table = Table(meta, colWidths=[30 * mm, 125 * mm])
-    meta_table.setStyle(
+    header = Table(
+        [
+            [
+                header_left,
+                Paragraph(
+                    "EVIDENCE-GROUNDED RESEARCH",
+                    styles["HeaderKicker"],
+                ),
+            ]
+        ],
+        colWidths=[available_width * 0.67, available_width * 0.33],
+    )
+    header.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (0, -1), STONE),
-                ("TEXTCOLOR", (0, 0), (-1, -1), INK),
-                ("GRID", (0, 0), (-1, -1), 0.5, BORDER),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("PADDING", (0, 0), (-1, -1), 7),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
             ]
         )
     )
-    story.extend([meta_table, Spacer(1, 14)])
+
+    document_count = conversation.workspace.documents.count()
+    paper_word = "paper" if document_count == 1 else "papers"
+
+    story = [
+        header,
+        Spacer(1, 5),
+        HRFlowable(
+            width="100%",
+            thickness=0.8,
+            color=GOLD,
+            spaceAfter=10,
+        ),
+        Paragraph("RESEARCH CONVERSATION", styles["ConversationEyebrow"]),
+        Paragraph(
+            escape(_pdf_safe_text(conversation.title)),
+            styles["ConversationTitle"],
+        ),
+        Paragraph(
+            (
+                f"{escape(_pdf_safe_text(conversation.workspace.name))}"
+                f"  |  "
+                f"{_format_generated(getattr(conversation, 'updated_at', None))}"
+                f"  |  "
+                f"{document_count} {paper_word}"
+            ),
+            styles["Meta"],
+        ),
+        Spacer(1, 12),
+    ]
 
     for message in messages:
-        role = "User" if message.role == "USER" else "ScholarSync"
-        story.append(CondPageBreak(25 * mm))
-        story.append(Paragraph(role, styles["Role"]))
+        is_user = message.role == "USER"
+        role_label = "YOU" if is_user else "SCHOLARSYNC"
 
-        if role == "User":
-            story.append(Paragraph(_inline_markup(message.content), styles["UserMessage"]))
+        story.append(CondPageBreak(28 * mm))
+        story.append(Paragraph(role_label, styles["Role"]))
+
+        if is_user:
+            user_box = Table(
+                [
+                    [
+                        Paragraph(
+                            _inline_markup(message.content),
+                            styles["UserMessage"],
+                        )
+                    ]
+                ],
+                colWidths=[available_width],
+            )
+            user_box.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, -1), ROSE),
+                        ("BOX", (0, 0), (-1, -1), 0.5, BORDER),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                        ("TOPPADDING", (0, 0), (-1, -1), 9),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+                    ]
+                )
+            )
+            story.append(user_box)
         else:
-            story.extend(_markdown_flowables(message.content, styles, available_width))
+            story.extend(
+                _markdown_flowables(
+                    message.content,
+                    styles,
+                    available_width,
+                )
+            )
 
-        citations = list(message.citations.select_related("document").all())
+        citations = list(
+            message.citations
+            .select_related("document")
+            .all()
+        )
+
         if citations:
-            story.append(Paragraph("Sources", styles["SourceHeading"]))
+            story.append(Spacer(1, 4))
+            story.append(Paragraph("EVIDENCE USED", styles["SourceHeading"]))
+            story.append(
+                Paragraph(
+                    "Retrieved passages supporting this response",
+                    styles["EvidenceSubtitle"],
+                )
+            )
+
             for citation in citations:
-                story.append(
-                    Paragraph(
-                        f"[{citation.citation_number}] "
-                        f"{escape(_pdf_safe_text(citation.document.display_title))}, "
-                        f"page {citation.page_number}",
-                        styles["SourceLine"],
+                (
+                    verification_label,
+                    verification_background,
+                    verification_text_color,
+                ) = _verification_presentation(citation.verification_status)
+
+                title = (
+                    f"[{citation.citation_number}] "
+                    f"{escape(_pdf_safe_text(citation.document.display_title))}"
+                )
+                source_meta = (
+                    f"Page {citation.page_number}"
+                    f"  |  retrieval score {citation.retrieval_score:.3f}"
+                )
+                excerpt = _truncate_pdf_excerpt(citation.quoted_passage)
+
+                verification = Paragraph(
+                    (
+                        f"<font color='{verification_text_color}'>"
+                        f"<b>{escape(verification_label)}</b>"
+                        f"</font>"
+                    ),
+                    styles["VerificationPill"],
+                )
+
+                badge_width = 39 * mm
+                card_inner_width = available_width - 16
+                meta_width = card_inner_width - badge_width
+
+                badge = Table(
+                    [[verification]],
+                    colWidths=[badge_width],
+                    hAlign="RIGHT",
+                )
+                badge.setStyle(
+                    TableStyle(
+                        [
+                            ("BACKGROUND", (0, 0), (-1, -1), verification_background),
+                            ("BOX", (0, 0), (-1, -1), 0.35, verification_background),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                            ("TOPPADDING", (0, 0), (-1, -1), 4),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ]
                     )
                 )
 
-        story.extend([
-            Spacer(1, 7),
-            HRFlowable(width="100%", thickness=0.4, color=BORDER),
-            Spacer(1, 5),
-        ])
+                meta_row = Table(
+                    [
+                        [
+                            Paragraph(
+                                escape(source_meta),
+                                styles["SourceMeta"],
+                            ),
+                            badge,
+                        ]
+                    ],
+                    colWidths=[meta_width, badge_width],
+                    hAlign="LEFT",
+                )
+                meta_row.setStyle(
+                    TableStyle(
+                        [
+                            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                            ("TOPPADDING", (0, 0), (-1, -1), 0),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                        ]
+                    )
+                )
 
-    story.extend([
-        Spacer(1, 10),
-        Paragraph(
-            "This report was generated from selected documents. "
-            "Check AI-generated interpretations against the cited sources.",
-            styles["Meta"],
-        ),
-    ])
-    doc.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
+                source_content = [
+                    Paragraph(title, styles["SourceTitle"]),
+                    meta_row,
+                    Spacer(1, 4),
+                    Paragraph(
+                        escape(excerpt),
+                        styles["SourceExcerpt"],
+                    ),
+                ]
+
+                evidence_card = Table(
+                    [[source_content]],
+                    colWidths=[available_width],
+                )
+                evidence_card.setStyle(
+                    TableStyle(
+                        [
+                            ("BACKGROUND", (0, 0), (-1, -1), SURFACE),
+                            ("BOX", (0, 0), (-1, -1), 0.5, BORDER),
+                            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                            ("TOPPADDING", (0, 0), (-1, -1), 7),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                        ]
+                    )
+                )
+
+                story.append(evidence_card)
+                story.append(Spacer(1, 6))
+
+        story.extend(
+            [
+                Spacer(1, 6),
+                HRFlowable(
+                    width="100%",
+                    thickness=0.4,
+                    color=BORDER,
+                ),
+                Spacer(1, 5),
+            ]
+        )
+
+    story.extend(
+        [
+            Spacer(1, 7),
+            Paragraph(
+                (
+                    "Generated from uploaded research papers. "
+                    "Verify AI-generated interpretations against the cited source pages."
+                ),
+                styles["Meta"],
+            ),
+        ]
+    )
+
+    doc.build(
+        story,
+        onFirstPage=_draw_footer,
+        onLaterPages=_draw_footer,
+    )
     return output.getvalue()
