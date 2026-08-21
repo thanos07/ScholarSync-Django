@@ -279,3 +279,28 @@ class PdfFormulaRenderingTests(SimpleTestCase):
             flowables[0]._start,
             "bulletchar",
         )
+
+    def test_trigonometric_commands_are_pdf_safe(self):
+        rendered = _latex_to_pdf_markup(
+            r"\sin(x) + \cos(y)"
+        )
+
+        self.assertNotIn(
+            r"\sin",
+            rendered,
+        )
+
+        self.assertNotIn(
+            r"\cos",
+            rendered,
+        )
+
+        self.assertIn(
+            "sin(x)",
+            rendered,
+        )
+
+        self.assertIn(
+            "cos(y)",
+            rendered,
+        )

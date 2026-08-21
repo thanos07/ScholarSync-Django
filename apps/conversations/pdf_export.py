@@ -436,6 +436,8 @@ def _latex_to_pdf_markup(value):
         r"\xi": "xi",
         r"\max": "max",
         r"\min": "min",
+        r"\sin": "sin",
+        r"\cos": "cos",
         r"\sum": "∑",
         r"\prod": "∏",
         r"\sqrt": "√",
