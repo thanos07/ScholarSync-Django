@@ -2227,6 +2227,18 @@ h3 {
     line-height: 1.7;
 }
 
+/* =========================================================
+   PRIVATE RESEARCH EMPTY STATE — VERTICAL POSITION
+   ========================================================= */
+
+/*
+   Move the empty conversation state slightly above
+   mathematical center so it does not sit too close
+   to the composer.
+*/
+.research-shell:not(.demo-shell) .chat-empty {
+    transform: translateY(-80px);
+}
 
 /* =========================================================
    34. RESEARCH LAYOUT WIDTH REFINEMENT
@@ -2253,6 +2265,10 @@ h3 {
 @media (max-width: 720px) {
     .chat-empty {
         margin: 13vh auto;
+    }
+
+    .research-shell:not(.demo-shell) .chat-empty {
+    transform: translateY(-24px);
     }
 
     .chat-empty-logo {
@@ -5270,7 +5286,7 @@ h3 {
 
 
 .auth-login-card {
-    margin-top: 45px;
+    margin-top: 0;
 }
 
 
