@@ -4594,3 +4594,632 @@ h3 {
     }
 
 }
+
+/* =========================================================
+   47. RESEARCH NOTES — EDITORIAL WORKSPACE
+   ========================================================= */
+
+
+/* ---------------------------------------------------------
+   Page
+   --------------------------------------------------------- */
+
+.notes-page {
+    min-height: calc(100vh - 180px);
+
+    padding-bottom: 68px;
+}
+
+
+/* ---------------------------------------------------------
+   Page heading
+   --------------------------------------------------------- */
+
+.notes-page-head {
+    padding-top: 58px;
+    padding-bottom: 27px;
+
+    border-bottom: 1px solid var(--border);
+}
+
+
+.notes-page-head .eyebrow {
+    margin-bottom: 8px;
+}
+
+
+.notes-page-head h1 {
+    margin: 0 0 8px;
+
+    color: var(--primary-dark);
+
+    font-family: var(--font-serif);
+
+    font-size:
+        clamp(
+            2.9rem,
+            5vw,
+            3.9rem
+        );
+
+    line-height: 0.98;
+
+    letter-spacing: -0.045em;
+}
+
+
+.notes-page-head p {
+    max-width: 650px;
+
+    margin: 0;
+
+    color: var(--muted);
+
+    font-size: 0.94rem;
+    line-height: 1.55;
+}
+
+
+/* ---------------------------------------------------------
+   Main notes layout
+   --------------------------------------------------------- */
+
+.notes-layout {
+    padding-top: 28px;
+
+    display: grid;
+
+    grid-template-columns:
+        minmax(0, 1.08fr)
+        minmax(340px, 0.92fr);
+
+    gap: 22px;
+
+    align-items: start;
+}
+
+
+/* Shared panel */
+
+.notes-create-panel,
+.notes-saved-panel {
+    background:
+        rgba(255, 253, 249, 0.94);
+
+    border: 1px solid var(--border);
+    border-radius: 18px;
+
+    box-shadow:
+        0 10px 30px
+        rgba(61, 35, 28, 0.045);
+}
+
+
+/* ---------------------------------------------------------
+   Create panel
+   --------------------------------------------------------- */
+
+.notes-create-panel {
+    padding: 26px;
+}
+
+
+.notes-panel-header {
+    margin-bottom: 23px;
+    padding-bottom: 20px;
+
+    border-bottom: 1px solid var(--border);
+}
+
+
+.notes-panel-header .eyebrow {
+    margin-bottom: 6px;
+}
+
+
+.notes-panel-header h2 {
+    margin: 0 0 7px;
+
+    color: var(--primary-dark);
+
+    font-family: var(--font-serif);
+
+    font-size: 1.85rem;
+    line-height: 1.05;
+}
+
+
+.notes-panel-header p {
+    max-width: 560px;
+
+    margin: 0;
+
+    color: var(--muted);
+
+    font-size: 0.8rem;
+    line-height: 1.55;
+}
+
+
+/* ---------------------------------------------------------
+   Form layout
+   --------------------------------------------------------- */
+
+.notes-create-form {
+    display: flex;
+    flex-direction: column;
+
+    gap: 18px;
+}
+
+
+.notes-form-row {
+    display: grid;
+
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+
+    gap: 14px;
+}
+
+
+.notes-field {
+    min-width: 0;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 5px;
+}
+
+
+.notes-page-field {
+    width: min(230px, 100%);
+}
+
+
+.notes-field label {
+    display: flex;
+    align-items: center;
+
+    gap: 7px;
+
+    color: var(--text);
+
+    font-size: 0.81rem;
+    font-weight: 800;
+}
+
+
+.notes-optional {
+    padding: 2px 6px;
+
+    color: var(--muted);
+    background: var(--surface-soft);
+
+    border-radius: 999px;
+
+    font-size: 0.59rem;
+    font-weight: 700;
+
+    letter-spacing: 0.02em;
+}
+
+
+.notes-field-help {
+    margin-bottom: 3px;
+
+    color: var(--muted);
+
+    font-size: 0.69rem;
+    line-height: 1.4;
+}
+
+
+/* ---------------------------------------------------------
+   Form controls
+   --------------------------------------------------------- */
+
+.notes-field input,
+.notes-field textarea,
+.notes-field select {
+    width: 100%;
+
+    color: var(--text);
+    background: var(--surface-white);
+
+    border: 1px solid var(--border);
+    border-radius: 11px;
+
+    font: inherit;
+    font-size: 0.82rem;
+
+    transition:
+        border-color 140ms ease,
+        box-shadow 140ms ease,
+        background 140ms ease;
+}
+
+
+.notes-field input,
+.notes-field select {
+    min-height: 44px;
+
+    padding:
+        9px
+        11px;
+}
+
+
+.notes-field textarea {
+    min-height: 126px;
+
+    padding:
+        11px
+        12px;
+
+    line-height: 1.5;
+
+    resize: vertical;
+}
+
+
+.notes-field select {
+    cursor: pointer;
+}
+
+
+.notes-field input:hover,
+.notes-field textarea:hover,
+.notes-field select:hover {
+    border-color: #d3b29e;
+}
+
+
+.notes-field input:focus,
+.notes-field textarea:focus,
+.notes-field select:focus {
+    background: #ffffff;
+
+    border-color: #bd927b;
+
+    box-shadow:
+        0 0 0 3px
+        rgba(100, 19, 40, 0.055);
+
+    outline: none;
+}
+
+
+/* ---------------------------------------------------------
+   Errors
+   --------------------------------------------------------- */
+
+.notes-form-errors,
+.notes-field-errors {
+    color: var(--error);
+
+    font-size: 0.72rem;
+}
+
+
+.notes-form-errors ul,
+.notes-field-errors ul {
+    margin: 2px 0 0;
+
+    padding-left: 17px;
+}
+
+
+/* ---------------------------------------------------------
+   Save actions
+   --------------------------------------------------------- */
+
+.notes-form-actions {
+    margin-top: 2px;
+    padding-top: 18px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 18px;
+
+    border-top: 1px solid var(--border);
+}
+
+
+.notes-save-hint {
+    max-width: 260px;
+
+    color: var(--muted);
+
+    font-size: 0.68rem;
+    line-height: 1.4;
+}
+
+
+/* ---------------------------------------------------------
+   Saved notes
+   --------------------------------------------------------- */
+
+.notes-saved-panel {
+    overflow: hidden;
+}
+
+
+.notes-saved-head {
+    padding: 23px 24px 17px;
+
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+
+    gap: 20px;
+
+    border-bottom: 1px solid var(--border);
+}
+
+
+.notes-saved-head .eyebrow {
+    margin-bottom: 4px;
+}
+
+
+.notes-saved-head h2 {
+    margin: 0;
+
+    color: var(--primary-dark);
+
+    font-family: var(--font-serif);
+
+    font-size: 1.55rem;
+    line-height: 1.05;
+}
+
+
+.notes-count {
+    flex: 0 0 auto;
+
+    color: var(--muted);
+
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+
+/* ---------------------------------------------------------
+   Note collection
+   --------------------------------------------------------- */
+
+.notes-list {
+    padding: 12px;
+}
+
+
+.saved-note-card {
+    padding: 16px 15px;
+
+    background: var(--surface-white);
+
+    border: 1px solid transparent;
+    border-bottom-color: var(--border);
+
+    transition:
+        background 140ms ease,
+        border-color 140ms ease;
+}
+
+
+.saved-note-card:first-child {
+    border-radius: 11px 11px 0 0;
+}
+
+
+.saved-note-card:last-child {
+    border-bottom-color: transparent;
+
+    border-radius: 0 0 11px 11px;
+}
+
+
+.saved-note-card:only-child {
+    border-radius: 11px;
+}
+
+
+.saved-note-card:hover {
+    background: #fff9f3;
+
+    border-color: var(--border);
+
+    border-radius: 11px;
+}
+
+
+.saved-note-workspace {
+    display: block;
+
+    margin-bottom: 7px;
+
+    color: var(--primary);
+
+    font-size: 0.63rem;
+    font-weight: 800;
+
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+
+.saved-note-card h3 {
+    margin: 0 0 6px;
+
+    color: var(--text);
+
+    font-family: var(--font-sans);
+
+    font-size: 0.92rem;
+    line-height: 1.35;
+}
+
+
+.saved-note-content {
+    margin: 0;
+
+    color: var(--muted);
+
+    font-size: 0.76rem;
+    line-height: 1.55;
+}
+
+
+/* ---------------------------------------------------------
+   Note metadata
+   --------------------------------------------------------- */
+
+.saved-note-meta {
+    margin-top: 11px;
+    padding-top: 10px;
+
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+
+    gap: 7px;
+
+    border-top: 1px solid var(--border);
+}
+
+
+.saved-note-source {
+    min-width: 0;
+
+    color: var(--muted);
+
+    font-size: 0.66rem;
+    line-height: 1.4;
+
+    overflow-wrap: anywhere;
+}
+
+
+.saved-note-tags {
+    padding: 3px 7px;
+
+    color: var(--accent-dark);
+    background: var(--accent-soft);
+
+    border-radius: 999px;
+
+    font-size: 0.61rem;
+    font-weight: 700;
+}
+
+
+/* ---------------------------------------------------------
+   Empty state
+   --------------------------------------------------------- */
+
+.notes-empty {
+    padding: 52px 28px;
+
+    text-align: center;
+}
+
+
+.notes-empty h3 {
+    margin-bottom: 6px;
+
+    color: var(--primary-dark);
+
+    font-family: var(--font-serif);
+
+    font-size: 1.25rem;
+}
+
+
+.notes-empty p {
+    margin: 0;
+
+    color: var(--muted);
+
+    font-size: 0.8rem;
+}
+
+
+/* ---------------------------------------------------------
+   Responsive
+   --------------------------------------------------------- */
+
+@media (max-width: 900px) {
+
+    .notes-layout {
+        grid-template-columns: 1fr;
+    }
+
+}
+
+
+@media (max-width: 720px) {
+
+    .notes-page {
+        min-height:
+            calc(100vh - 150px);
+
+        padding-bottom: 45px;
+    }
+
+
+    .notes-page-head {
+        padding-top: 42px;
+        padding-bottom: 23px;
+    }
+
+
+    .notes-page-head h1 {
+        font-size:
+            clamp(
+                2.5rem,
+                13vw,
+                3.2rem
+            );
+    }
+
+
+    .notes-layout {
+        padding-top: 22px;
+    }
+
+
+    .notes-create-panel {
+        padding: 21px 18px;
+    }
+
+
+    .notes-form-row {
+        grid-template-columns: 1fr;
+    }
+
+
+    .notes-page-field {
+        width: 100%;
+    }
+
+
+    .notes-form-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+
+    .notes-save-hint {
+        max-width: none;
+    }
+
+
+    .notes-form-actions .button {
+        width: 100%;
+    }
+
+}
