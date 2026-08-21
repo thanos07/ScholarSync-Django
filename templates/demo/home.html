@@ -1,48 +1,159 @@
 {% extends "base.html" %}
-{% block title %}Interactive Demo - ScholarSync{% endblock %}
-{% block body_class %}research-page{% endblock %}
+
+{% block title %}
+Interactive Demo - ScholarSync
+{% endblock %}
+
+{% block body_class %}
+research-page
+{% endblock %}
+
 {% block content %}
+
 <section class="demo-banner">
+
   <div>
-    <span class="eyebrow">Public demo mode</span>
-    <b>No login · no upload · independent of Supabase</b>
+    <span class="eyebrow">
+      Public demo mode
+    </span>
+
+    <b>
+      No login · no upload · independent of Supabase
+    </b>
   </div>
+
   <div>
-    <a href="{% url 'demo-clear' %}">Clear</a>
+
+    <a href="{% url 'demo-clear' %}">
+      Clear
+    </a>
+
     <a
       class="button button-small"
       href="{% url 'demo-export-pdf' %}"
       data-export-link
       {% if not history %}hidden{% endif %}
-    >Download conversation PDF</a>
+    >
+      Download conversation PDF
+    </a>
+
   </div>
+
 </section>
 
-<section class="research-shell demo-shell" data-research-shell>
-  <aside class="research-sidebar" id="research-library" data-research-sidebar>
-    <span class="eyebrow">Curated library</span>
-    <h2>Demo papers</h2>
+
+<section
+  class="research-shell demo-shell"
+  data-research-shell
+>
+
+  <!-- =====================================================
+       CURATED DEMO LIBRARY
+       ===================================================== -->
+
+  <aside
+    class="research-sidebar"
+    id="research-library"
+    data-research-sidebar
+  >
+
+    <span class="eyebrow">
+      Curated library
+    </span>
+
+    <h2>
+      Demo papers
+    </h2>
+
+
     {% for document in documents %}
-      <a class="side-document active" href="{% url 'demo-paper' document.id %}" target="_blank" rel="noopener">
-        <span>PDF</span>
+
+      <a
+        class="side-document active"
+        href="{% url 'demo-paper' document.id %}"
+        target="_blank"
+        rel="noopener"
+      >
+
+        <span>
+          PDF
+        </span>
+
         <div>
-          <b>{{ document.title }}</b>
-          <small>{{ document.pages }} pages · open paper</small>
+
+          <b>
+            {{ document.title }}
+          </b>
+
+          <small>
+            {{ document.pages }}
+            pages · open paper
+          </small>
+
         </div>
+
       </a>
+
     {% endfor %}
+
+
     <div class="demo-note">
-      <b>Try asking</b>
-      <button type="button" class="suggested-question" data-suggested-question="How do global and local attention differ?">How do global and local attention differ?</button>
-      <button type="button" class="suggested-question" data-suggested-question="Why are convolutions faster than recurrent models?">Why are convolutions faster than recurrent models?</button>
-      <button type="button" class="suggested-question" data-suggested-question="How does multi-head self-attention work?">How does multi-head self-attention work?</button>
-      <button type="button" class="suggested-question" data-suggested-question="Compare the three sequence-to-sequence architectures.">Compare the three sequence-to-sequence architectures.</button>
+
+      <b>
+        Try asking
+      </b>
+
+
+      <button
+        type="button"
+        class="suggested-question"
+        data-suggested-question="How do global and local attention differ?"
+      >
+        How do global and local attention differ?
+      </button>
+
+
+      <button
+        type="button"
+        class="suggested-question"
+        data-suggested-question="Why are convolutions faster than recurrent models?"
+      >
+        Why are convolutions faster than recurrent models?
+      </button>
+
+
+      <button
+        type="button"
+        class="suggested-question"
+        data-suggested-question="How does multi-head self-attention work?"
+      >
+        How does multi-head self-attention work?
+      </button>
+
+
+      <button
+        type="button"
+        class="suggested-question"
+        data-suggested-question="Compare the three sequence-to-sequence architectures."
+      >
+        Compare the three sequence-to-sequence architectures.
+      </button>
+
     </div>
+
   </aside>
 
+
+  <!-- =====================================================
+       CONVERSATION
+       ===================================================== -->
+
   <section class="chat-panel">
+
     <div class="chat-head">
+
       <div class="chat-head-title">
+
         <button
           class="sidebar-toggle"
           type="button"
@@ -50,48 +161,229 @@
           aria-expanded="true"
           data-sidebar-toggle
         >
-          <span aria-hidden="true">☰</span>
-          <span data-sidebar-toggle-label>Hide library</span>
+
+          <span aria-hidden="true">
+            ☰
+          </span>
+
+          <span data-sidebar-toggle-label>
+            Hide library
+          </span>
+
         </button>
+
+
         <div>
-          <span class="eyebrow">Interactive research demo</span>
-          <h1>Explore evidence-grounded Q&amp;A</h1>
+
+          <span class="eyebrow">
+            Interactive research demo
+          </span>
+
+          <h1>
+            Explore evidence-grounded Q&amp;A
+          </h1>
+
         </div>
+
       </div>
+
     </div>
 
-    <div class="message-stream" data-message-stream>
+
+    <!-- =================================================
+         MESSAGE STREAM
+         ================================================= -->
+
+    <div
+      class="message-stream"
+      data-message-stream
+    >
+
       {% for message in history %}
-        <article class="chat-message {% if message.role == 'USER' %}user-message{% else %}assistant-message{% endif %}">
-          <span class="message-role">{% if message.role == 'USER' %}You{% else %}ScholarSync{% endif %}</span>
-          <button type="button" class="message-copy-button" data-copy-message aria-label="Copy {% if message.role == 'USER' %}question{% else %}answer{% endif %}">Copy</button>
-          <span hidden data-message-raw>{{ message.content }}</span>
+
+        <article
+          class="
+            chat-message
+            {% if message.role == 'USER' %}
+              user-message
+            {% else %}
+              assistant-message
+            {% endif %}
+          "
+        >
+
+          <span class="message-role">
+
+            {% if message.role == 'USER' %}
+              You
+            {% else %}
+              ScholarSync
+            {% endif %}
+
+          </span>
+
+
+          <button
+            type="button"
+            class="message-copy-button"
+            data-copy-message
+            aria-label="
+              Copy
+              {% if message.role == 'USER' %}
+                question
+              {% else %}
+                answer
+              {% endif %}
+            "
+          >
+            Copy
+          </button>
+
+
+          <span
+            hidden
+            data-message-raw
+          >
+            {{ message.content }}
+          </span>
+
+
           {% if message.role == 'USER' %}
-            <div class="message-content">{{ message.content|linebreaksbr }}</div>
-          {% else %}
-            <div class="message-content" data-markdown-content>{{ message.content }}</div>
-          {% endif %}
-          {% if message.citations %}
-            <div class="citation-list">
-              <b>Evidence</b>
-              {% for citation in message.citations %}
-                <a href="{% url 'demo-paper' citation.document_id %}#page={{ citation.page }}" target="_blank" rel="noopener">[{{ citation.number }}] {{ citation.source }} · p. {{ citation.page }}</a>
-              {% endfor %}
+
+            <div class="message-content">
+              {{ message.content|linebreaksbr }}
             </div>
+
+          {% else %}
+
+            <div
+              class="message-content"
+              data-markdown-content
+            >
+              {{ message.content }}
+            </div>
+
           {% endif %}
+
+
+          <!-- =============================================
+               INLINE EVIDENCE
+               ============================================= -->
+
+          {% if message.citations %}
+
+            <div class="citation-list">
+
+              <b>
+                Evidence
+              </b>
+
+
+              {% for citation in message.citations %}
+
+                <a
+                  href="{% url 'demo-paper' citation.document_id %}#page={{ citation.page }}"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  [{{ citation.number }}]
+                  {{ citation.source }}
+                  · p. {{ citation.page }}
+                </a>
+
+
+                <span
+                  class="
+                    citation-verification
+                    citation-verification-{{ citation.verification_status|default:'UNCHECKED'|lower }}
+                  "
+                >
+
+                  {% if citation.verification_status == 'SUPPORTED' %}
+
+                    Strong evidence match
+
+                  {% elif citation.verification_status == 'PARTIAL' %}
+
+                    Partial evidence match
+
+                  {% elif citation.verification_status == 'REVIEW' %}
+
+                    Needs review
+
+                  {% elif citation.verification_status == 'VALID' %}
+
+                    Supported
+
+                  {% else %}
+
+                    Not checked
+
+                  {% endif %}
+
+                </span>
+
+              {% endfor %}
+
+            </div>
+
+          {% endif %}
+
         </article>
+
+
       {% empty %}
-        <div class="chat-empty" data-chat-empty>
-          <span class="brand-mark large">S</span>
-          <h2>Ask across three foundational attention papers</h2>
-          <p>The answer will include supporting paper and page citations. When the model is unavailable, ScholarSync transparently returns retrieved evidence instead.</p>
+
+        <div
+          class="chat-empty"
+          data-chat-empty
+        >
+
+          <span class="brand-mark large">
+            S
+          </span>
+
+          <h2>
+            Ask across three foundational
+            attention papers
+          </h2>
+
+          <p>
+            ScholarSync retrieves supporting evidence
+            first, answers from the curated research
+            library, and shows the exact paper pages
+            used.
+          </p>
+
         </div>
+
       {% endfor %}
+
     </div>
 
-    <form method="post" class="composer" data-question-composer data-chat-form>
+
+    <!-- =================================================
+         COMPOSER
+         ================================================= -->
+
+    <form
+      method="post"
+      class="composer"
+      data-question-composer
+      data-chat-form
+    >
+
       {% csrf_token %}
-      <label class="sr-only" for="demo-question">Research question</label>
+
+
+      <label
+        class="sr-only"
+        for="demo-question"
+      >
+        Research question
+      </label>
+
+
       <textarea
         id="demo-question"
         name="question"
@@ -101,27 +393,126 @@
         data-question-input
         placeholder="Ask about attention, convolutional sequence models, Transformers, or compare the papers..."
       ></textarea>
-      <button class="button" type="submit" data-submit-button>Ask ScholarSync</button>
+
+
+      <button
+        class="button"
+        type="submit"
+        data-submit-button
+      >
+        Ask ScholarSync
+      </button>
+
     </form>
+
   </section>
 
+
+  <!-- =====================================================
+       EVIDENCE VIEWER
+       ===================================================== -->
+
   <aside class="evidence-panel">
-    <span class="eyebrow">Evidence viewer</span>
-    <h2>Retrieved sources</h2>
+
+    <span class="eyebrow">
+      Evidence viewer
+    </span>
+
+    <h2>
+      Retrieved sources
+    </h2>
+
+
     <div data-evidence-list>
-      {% for message in history %}
-        {% for citation in message.citations %}
-          <article class="evidence-card">
-            <div><span>[{{ citation.number }}]</span><b>Page {{ citation.page }}</b></div>
-            <p>{{ citation.excerpt }}</p>
-            <a href="{% url 'demo-paper' citation.document_id %}#page={{ citation.page }}" target="_blank" rel="noopener">Open page {{ citation.page }} →</a>
-            <small>{{ citation.source }} · retrieval score {{ citation.score }}</small>
-          </article>
-        {% endfor %}
+
+      {% for citation in latest_citations %}
+
+        <article class="evidence-card">
+
+          <div>
+
+            <span>
+              [{{ citation.number }}]
+            </span>
+
+            <b>
+              Page {{ citation.page }}
+            </b>
+
+          </div>
+
+
+          <p>
+            {{ citation.excerpt }}
+          </p>
+
+
+          <a
+            href="{% url 'demo-paper' citation.document_id %}#page={{ citation.page }}"
+            target="_blank"
+            rel="noopener"
+          >
+            Open page {{ citation.page }} →
+          </a>
+
+
+          <small>
+            {{ citation.source }}
+            · retrieval score
+            {{ citation.score }}
+          </small>
+
+
+          <span
+            class="
+              citation-verification
+              citation-verification-{{ citation.verification_status|default:'UNCHECKED'|lower }}
+            "
+          >
+
+            {% if citation.verification_status == 'SUPPORTED' %}
+
+              Strong evidence match
+
+            {% elif citation.verification_status == 'PARTIAL' %}
+
+              Partial evidence match
+
+            {% elif citation.verification_status == 'REVIEW' %}
+
+              Needs review
+
+            {% elif citation.verification_status == 'VALID' %}
+
+              Supported
+
+            {% else %}
+
+              Not checked
+
+            {% endif %}
+
+          </span>
+
+        </article>
+
+
       {% empty %}
-        <p class="muted" data-evidence-empty>Supporting passages will appear after your first question.</p>
+
+        <p
+          class="muted"
+          data-evidence-empty
+        >
+          Supporting passages will appear
+          after your first grounded answer.
+        </p>
+
       {% endfor %}
+
     </div>
+
   </aside>
+
 </section>
+
 {% endblock %}
