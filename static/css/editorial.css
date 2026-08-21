@@ -5223,3 +5223,341 @@ h3 {
     }
 
 }
+
+/* =========================================================
+   48. AUTHENTICATION — EDITORIAL POLISH
+   ========================================================= */
+
+
+/* ---------------------------------------------------------
+   Page
+   --------------------------------------------------------- */
+
+.auth-editorial-page {
+    min-height: calc(100vh - 180px);
+
+    padding:
+        54px
+        20px
+        68px;
+}
+
+
+.auth-editorial-shell {
+    width: min(560px, 100%);
+
+    margin-inline: auto;
+}
+
+
+/* ---------------------------------------------------------
+   Card
+   --------------------------------------------------------- */
+
+.auth-editorial-card {
+    padding: 34px;
+
+    background:
+        rgba(255, 253, 249, 0.95);
+
+    border: 1px solid var(--border);
+    border-radius: 20px;
+
+    box-shadow:
+        0 16px 42px
+        rgba(61, 35, 28, 0.065);
+}
+
+
+.auth-login-card {
+    margin-top: 45px;
+}
+
+
+.auth-register-card {
+    padding-bottom: 30px;
+}
+
+
+/* ---------------------------------------------------------
+   Header
+   --------------------------------------------------------- */
+
+.auth-editorial-header {
+    margin-bottom: 27px;
+    padding-bottom: 22px;
+
+    border-bottom: 1px solid var(--border);
+}
+
+
+.auth-editorial-header .eyebrow {
+    margin-bottom: 8px;
+}
+
+
+.auth-editorial-header h1 {
+    margin: 0 0 9px;
+
+    color: var(--primary-dark);
+
+    font-family: var(--font-serif);
+
+    font-size:
+        clamp(
+            2.25rem,
+            5vw,
+            2.9rem
+        );
+
+    line-height: 1;
+
+    letter-spacing: -0.04em;
+}
+
+
+.auth-editorial-header p {
+    max-width: 470px;
+
+    margin: 0;
+
+    color: var(--muted);
+
+    font-size: 0.87rem;
+    line-height: 1.6;
+}
+
+
+/* ---------------------------------------------------------
+   Form
+   --------------------------------------------------------- */
+
+.auth-editorial-form {
+    display: flex;
+    flex-direction: column;
+
+    gap: 18px;
+}
+
+
+.auth-field {
+    display: flex;
+    flex-direction: column;
+
+    gap: 6px;
+}
+
+
+.auth-field label {
+    color: var(--text);
+
+    font-size: 0.83rem;
+    font-weight: 800;
+}
+
+
+.auth-field-help {
+    margin-bottom: 2px;
+
+    color: var(--muted);
+
+    font-size: 0.7rem;
+    line-height: 1.4;
+}
+
+
+/* ---------------------------------------------------------
+   Inputs
+   --------------------------------------------------------- */
+
+.auth-field input {
+    width: 100%;
+
+    min-height: 47px;
+
+    padding:
+        10px
+        12px;
+
+    color: var(--text);
+    background: var(--surface-white);
+
+    border: 1px solid var(--border);
+    border-radius: 11px;
+
+    font: inherit;
+    font-size: 0.88rem;
+
+    transition:
+        border-color 140ms ease,
+        box-shadow 140ms ease,
+        background 140ms ease;
+}
+
+
+.auth-field input:hover {
+    border-color: #d3b29e;
+}
+
+
+.auth-field input:focus {
+    background: #ffffff;
+
+    border-color: #bd927b;
+
+    box-shadow:
+        0 0 0 3px
+        rgba(100, 19, 40, 0.055);
+
+    outline: none;
+}
+
+
+/* ---------------------------------------------------------
+   Password rules
+   --------------------------------------------------------- */
+
+.auth-password-rules {
+    margin-top: 2px;
+    padding: 10px 12px;
+
+    color: var(--muted);
+    background: var(--surface-soft);
+
+    border: 1px solid var(--border);
+    border-radius: 10px;
+
+    font-size: 0.68rem;
+    line-height: 1.5;
+}
+
+
+.auth-password-rules ul {
+    margin: 0;
+
+    padding-left: 17px;
+}
+
+
+.auth-password-rules li + li {
+    margin-top: 2px;
+}
+
+
+/* ---------------------------------------------------------
+   Errors
+   --------------------------------------------------------- */
+
+.auth-form-errors,
+.auth-field-errors {
+    color: var(--error);
+
+    font-size: 0.72rem;
+}
+
+
+.auth-form-errors ul,
+.auth-field-errors ul {
+    margin: 2px 0 0;
+
+    padding-left: 17px;
+}
+
+
+/* ---------------------------------------------------------
+   Primary action
+   --------------------------------------------------------- */
+
+.auth-primary-action {
+    width: fit-content;
+
+    margin-top: 3px;
+}
+
+
+/* ---------------------------------------------------------
+   Footer
+   --------------------------------------------------------- */
+
+.auth-editorial-foot {
+    margin-top: 24px;
+    padding-top: 20px;
+
+    display: flex;
+    align-items: center;
+
+    gap: 5px;
+
+    color: var(--muted);
+
+    border-top: 1px solid var(--border);
+
+    font-size: 0.78rem;
+}
+
+
+.auth-editorial-foot a {
+    color: var(--primary);
+
+    font-weight: 800;
+}
+
+
+/* ---------------------------------------------------------
+   Mobile
+   --------------------------------------------------------- */
+
+@media (max-width: 720px) {
+
+    .auth-editorial-page {
+        min-height:
+            calc(100vh - 150px);
+
+        padding:
+            36px
+            16px
+            48px;
+    }
+
+
+    .auth-editorial-card {
+        padding:
+            26px
+            20px;
+
+        border-radius: 17px;
+    }
+
+
+    .auth-login-card {
+        margin-top: 8px;
+    }
+
+
+    .auth-editorial-header {
+        margin-bottom: 23px;
+        padding-bottom: 19px;
+    }
+
+
+    .auth-editorial-header h1 {
+        font-size:
+            clamp(
+                2.15rem,
+                11vw,
+                2.65rem
+            );
+    }
+
+
+    .auth-primary-action {
+        width: 100%;
+    }
+
+
+    .auth-editorial-foot {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+}
