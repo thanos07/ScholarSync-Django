@@ -1,57 +1,390 @@
 {% extends "base.html" %}
 
-{% block title %}Notes - ScholarSync{% endblock %}
+{% block title %}
+Notes - ScholarSync
+{% endblock %}
 
 {% block content %}
-<section class="shell page-top">
-  <div>
-    <span class="eyebrow">Research notes</span>
-    <h1>Saved notes</h1>
-    <p>Create workspace notes and optionally connect them to a document page.</p>
-  </div>
-</section>
 
-<section class="shell workspace-layout">
-  <section class="panel">
-    <span class="eyebrow">Create</span>
-    <h2>New note</h2>
-    <p class="muted">Keep a research observation, interpretation, or page-specific reminder.</p>
+<div class="notes-page">
 
-    <form method="post" class="stack-form">
-      {% csrf_token %}
-      {{ form.as_p }}
-      <button class="button" type="submit">Save note</button>
-    </form>
+
+  <!-- =====================================================
+       PAGE HEADER
+       ===================================================== -->
+
+  <section class="shell notes-page-head">
+
+    <span class="eyebrow">
+      Research notes
+    </span>
+
+    <h1>
+      Saved notes
+    </h1>
+
+    <p>
+      Capture research observations and optionally
+      connect them to an exact document page.
+    </p>
+
   </section>
 
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Your notes</h2>
-      <span class="muted">{{ notes|length }} saved</span>
-    </div>
 
-    {% for note in notes %}
-      <article class="document-row">
-        <div class="grow">
-          <span class="eyebrow">{{ note.workspace.name }}</span>
-          <h3>{{ note.title }}</h3>
-          <p>{{ note.content|truncatechars:220 }}</p>
-          <p class="muted">
-            {% if note.document %}
-              {{ note.document.display_title }}{% if note.page_number %}, page {{ note.page_number }}{% endif %}
-            {% else %}
-              Workspace note
+
+  <!-- =====================================================
+       NOTES WORKSPACE
+       ===================================================== -->
+
+  <section class="shell notes-layout">
+
+
+    <!-- =================================================
+         CREATE NOTE
+         ================================================= -->
+
+    <section class="notes-create-panel">
+
+      <header class="notes-panel-header">
+
+        <span class="eyebrow">
+          Create
+        </span>
+
+        <h2>
+          New note
+        </h2>
+
+        <p>
+          Keep an observation, interpretation,
+          or page-specific research reminder.
+        </p>
+
+      </header>
+
+
+      <form
+        method="post"
+        class="notes-create-form"
+      >
+
+        {% csrf_token %}
+
+
+        {% if form.non_field_errors %}
+
+          <div class="notes-form-errors">
+            {{ form.non_field_errors }}
+          </div>
+
+        {% endif %}
+
+
+
+        <!-- =============================================
+             WORKSPACE + DOCUMENT
+             ============================================= -->
+
+        <div class="notes-form-row">
+
+          <div class="notes-field">
+
+            <label for="{{ form.workspace.id_for_label }}">
+              Workspace
+            </label>
+
+            <span class="notes-field-help">
+              Choose the research space for this note.
+            </span>
+
+            {{ form.workspace }}
+
+            {% if form.workspace.errors %}
+              <div class="notes-field-errors">
+                {{ form.workspace.errors }}
+              </div>
             {% endif %}
-            {% if note.tags %} · {{ note.tags }}{% endif %}
-          </p>
+
+          </div>
+
+
+          <div class="notes-field">
+
+            <label for="{{ form.document.id_for_label }}">
+              Document
+              <span class="notes-optional">
+                Optional
+              </span>
+            </label>
+
+            <span class="notes-field-help">
+              Attach the note to one uploaded paper.
+            </span>
+
+            {{ form.document }}
+
+            {% if form.document.errors %}
+              <div class="notes-field-errors">
+                {{ form.document.errors }}
+              </div>
+            {% endif %}
+
+          </div>
+
         </div>
-      </article>
-    {% empty %}
-      <div class="compact-empty">
-        <h3>No notes yet</h3>
-        <p>Create your first note using the form.</p>
+
+
+
+        <!-- =============================================
+             PAGE NUMBER
+             ============================================= -->
+
+        <div class="notes-field notes-page-field">
+
+          <label for="{{ form.page_number.id_for_label }}">
+            Page number
+            <span class="notes-optional">
+              Optional
+            </span>
+          </label>
+
+          <span class="notes-field-help">
+            Use this when the note refers to a specific page.
+          </span>
+
+          {{ form.page_number }}
+
+          {% if form.page_number.errors %}
+            <div class="notes-field-errors">
+              {{ form.page_number.errors }}
+            </div>
+          {% endif %}
+
+        </div>
+
+
+
+        <!-- =============================================
+             TITLE
+             ============================================= -->
+
+        <div class="notes-field">
+
+          <label for="{{ form.title.id_for_label }}">
+            Note title
+          </label>
+
+          {{ form.title }}
+
+          {% if form.title.errors %}
+            <div class="notes-field-errors">
+              {{ form.title.errors }}
+            </div>
+          {% endif %}
+
+        </div>
+
+
+
+        <!-- =============================================
+             CONTENT
+             ============================================= -->
+
+        <div class="notes-field">
+
+          <label for="{{ form.content.id_for_label }}">
+            Research note
+          </label>
+
+          {{ form.content }}
+
+          {% if form.content.errors %}
+            <div class="notes-field-errors">
+              {{ form.content.errors }}
+            </div>
+          {% endif %}
+
+        </div>
+
+
+
+        <!-- =============================================
+             TAGS
+             ============================================= -->
+
+        <div class="notes-field">
+
+          <label for="{{ form.tags.id_for_label }}">
+            Tags
+            <span class="notes-optional">
+              Optional
+            </span>
+          </label>
+
+          <span class="notes-field-help">
+            Separate multiple tags with commas.
+          </span>
+
+          {{ form.tags }}
+
+          {% if form.tags.errors %}
+            <div class="notes-field-errors">
+              {{ form.tags.errors }}
+            </div>
+          {% endif %}
+
+        </div>
+
+
+
+        <!-- =============================================
+             ACTION
+             ============================================= -->
+
+        <div class="notes-form-actions">
+
+          <span class="notes-save-hint">
+            Saved to your private research workspace.
+          </span>
+
+          <button
+            class="button"
+            type="submit"
+          >
+            Save note
+          </button>
+
+        </div>
+
+      </form>
+
+    </section>
+
+
+
+    <!-- =================================================
+         SAVED NOTES
+         ================================================= -->
+
+    <section class="notes-saved-panel">
+
+      <header class="notes-saved-head">
+
+        <div>
+
+          <span class="eyebrow">
+            Library
+          </span>
+
+          <h2>
+            Your notes
+          </h2>
+
+        </div>
+
+
+        <span class="notes-count">
+          {{ notes|length }}
+          saved
+        </span>
+
+      </header>
+
+
+
+      <div class="notes-list">
+
+        {% for note in notes %}
+
+          <article class="saved-note-card">
+
+
+            <!-- Workspace -->
+
+            <span class="saved-note-workspace">
+              {{ note.workspace.name }}
+            </span>
+
+
+
+            <!-- Title -->
+
+            <h3>
+              {{ note.title }}
+            </h3>
+
+
+
+            <!-- Content -->
+
+            <p class="saved-note-content">
+              {{ note.content|truncatechars:260 }}
+            </p>
+
+
+
+            <!-- Source -->
+
+            <div class="saved-note-meta">
+
+              {% if note.document %}
+
+                <span class="saved-note-source">
+
+                  {{ note.document.display_title }}
+
+                  {% if note.page_number %}
+                    · page {{ note.page_number }}
+                  {% endif %}
+
+                </span>
+
+              {% else %}
+
+                <span class="saved-note-source">
+                  Workspace note
+                </span>
+
+              {% endif %}
+
+
+              {% if note.tags %}
+
+                <span class="saved-note-tags">
+                  {{ note.tags }}
+                </span>
+
+              {% endif %}
+
+            </div>
+
+          </article>
+
+
+        {% empty %}
+
+          <div class="notes-empty">
+
+            <h3>
+              No notes yet
+            </h3>
+
+            <p>
+              Your saved research observations
+              will appear here.
+            </p>
+
+          </div>
+
+        {% endfor %}
+
       </div>
-    {% endfor %}
+
+    </section>
+
+
   </section>
-</section>
+
+</div>
+
 {% endblock %}

@@ -1,31 +1,491 @@
 {% extends "base.html" %}
-{% block title %}ScholarSync - Research with evidence{% endblock %}
+{% load static %}
+
+{% block title %}
+ScholarSync — Research with evidence
+{% endblock %}
+
+{% block body_class %}
+editorial-home
+{% endblock %}
+
 {% block content %}
+
+
+<!-- ======================================================
+     HERO
+     ====================================================== -->
+
 <section class="hero shell">
+
   <div class="hero-copy">
-    <span class="eyebrow">AI research workspace</span>
-    <h1>Read research papers with evidence, not guesswork.</h1>
-    <p class="hero-lead">Upload papers, ask grounded questions, compare findings, preserve citations, and export the complete conversation as a polished PDF.</p>
-    <div class="hero-actions"><a class="button" href="{% url 'demo-home' %}">Try interactive demo</a><a class="button button-secondary" href="{% url 'workspace-list' %}">Open workspace</a></div>
-    <p class="microcopy">Demo mode works without login and remains available independently of private workspace storage.</p><p class="creator-chip">Built by <a href="{{ creator_url }}" target="_blank" rel="noopener noreferrer">{{ creator_name }}</a></p>
-  </div>
-  <div class="hero-visual" aria-label="ScholarSync interface preview">
-    <div class="mock-window">
-      <div class="mock-top"><span></span><span></span><span></span></div>
-      <div class="mock-grid">
-        <aside><b>Research library</b><div class="mock-doc active">Attention Is All You Need</div><div class="mock-doc">Convolutional Seq2Seq</div><div class="mock-doc">Attention-based NMT</div></aside>
-        <section><div class="mock-question">How does the Transformer differ from recurrent and convolutional sequence models?</div><div class="mock-answer"><b>ScholarSync</b><p>The Transformer replaces recurrence and convolution with stacked self-attention, while the earlier papers use recurrent or convolutional encoder-decoder structures with attention. <span>[1–3]</span></p></div></section>
-      </div>
+
+    <span class="eyebrow">
+      AI research workspace
+    </span>
+
+    <h1>
+      Read research papers
+      with <span class="accent-text">evidence,</span>
+      not guesswork.
+    </h1>
+
+    <p class="hero-lead">
+      Upload papers, ask grounded questions, compare findings,
+      preserve citations, save research notes, and export your
+      complete conversation as a polished PDF.
+    </p>
+
+    <div class="hero-actions">
+
+      <a
+        class="button button-accent"
+        href="{% url 'demo-home' %}"
+      >
+        Try interactive demo
+      </a>
+
+      {% if user.is_authenticated %}
+
+        <a
+          class="button button-secondary"
+          href="{% url 'workspace-list' %}"
+        >
+          Open workspace
+        </a>
+
+      {% else %}
+
+        <a
+          class="button button-secondary"
+          href="{% url 'register' %}"
+        >
+          Create account
+        </a>
+
+      {% endif %}
+
     </div>
+
+    <p class="microcopy">
+      Read. Ask. Cite. — every answer stays connected
+      to the research evidence behind it.
+    </p>
+
   </div>
-</section>
-<section class="shell feature-section">
-  <div class="section-heading"><span class="eyebrow">Designed for serious study</span><h2>One place for papers, evidence, and research notes.</h2></div>
-  <div class="feature-grid">
-    <article class="feature-card"><div class="icon-tile">01</div><h3>Evidence-grounded answers</h3><p>Answers are restricted to retrieved passages and carry page-level citations.</p></article>
-    <article class="feature-card"><div class="icon-tile">02</div><h3>Private workspaces</h3><p>Each user’s documents, chunks, conversations, and notes remain isolated.</p></article>
-    <article class="feature-card"><div class="icon-tile">03</div><h3>Conversation reports</h3><p>Export the complete discussion, sources, and document details as a PDF.</p></article>
+
+
+  <div
+    class="hero-visual hero-art-card"
+    aria-label="ScholarSync research illustration"
+  >
+
+    <img
+      class="hero-art"
+      src="{% static 'images/research-hero.svg' %}"
+      alt="Research papers with a magnifying glass representing evidence-based research"
+    >
+
   </div>
+
 </section>
-<section class="shell split-cta"><div><span class="eyebrow">Built for resilience</span><h2>A public demo that still works when free cloud services pause.</h2><p>The curated demo uses packaged research content. Authenticated workspaces connect to persistent storage when configured.</p></div><a class="button" href="{% url 'demo-home' %}">Explore demo papers</a></section>
+
+
+
+<!-- ======================================================
+     ONE RESEARCH WORKSPACE
+     ====================================================== -->
+
+<section class="shell home-preview">
+
+  <div class="preview-heading">
+
+    <span class="eyebrow">
+      One research workspace
+    </span>
+
+    <h2>
+      Papers, evidence, conversations
+      and notes — together.
+    </h2>
+
+    <p class="muted">
+      ScholarSync keeps your research workflow connected,
+      so you can move from reading papers to asking questions
+      without losing the evidence behind your findings.
+    </p>
+
+  </div>
+
+
+  <div class="preview-grid">
+
+    <article class="preview-card">
+
+      <div class="preview-icon">
+        PDF
+      </div>
+
+      <h3>
+        Research papers
+      </h3>
+
+      <p>
+        Upload PDFs into private workspaces and keep papers
+        organized around each research topic.
+      </p>
+
+    </article>
+
+
+    <article class="preview-card">
+
+      <div class="preview-icon gold">
+        [1]
+      </div>
+
+      <h3>
+        Evidence-grounded answers
+      </h3>
+
+      <p>
+        Ask questions against your uploaded papers and receive
+        answers supported by retrieved passages and page-level citations.
+      </p>
+
+    </article>
+
+
+    <article class="preview-card">
+
+      <div class="preview-icon">
+        ↔
+      </div>
+
+      <h3>
+        Compare and preserve
+      </h3>
+
+      <p>
+        Compare findings across papers, preserve useful research
+        notes, and keep important evidence available for later.
+      </p>
+
+    </article>
+
+  </div>
+
+</section>
+
+
+
+<!-- ======================================================
+     RESEARCH FLOW
+     ====================================================== -->
+
+<section class="shell start-strip">
+
+  <div class="start-strip-heading">
+
+    <span class="eyebrow">
+      Your research flow
+    </span>
+
+    <h2>
+      From research paper to evidence-backed insight.
+    </h2>
+
+  </div>
+
+
+  <div class="start-grid">
+
+    <div class="start-step">
+
+      <span class="start-number">
+        1
+      </span>
+
+      <div>
+
+        <strong>
+          Create a workspace
+        </strong>
+
+        <small>
+          Keep each research topic and its evidence separate.
+        </small>
+
+      </div>
+
+    </div>
+
+
+    <div class="start-step">
+
+      <span class="start-number">
+        2
+      </span>
+
+      <div>
+
+        <strong>
+          Upload papers
+        </strong>
+
+        <small>
+          Add the PDFs you want ScholarSync to research.
+        </small>
+
+      </div>
+
+    </div>
+
+
+    <div class="start-step">
+
+      <span class="start-number">
+        3
+      </span>
+
+      <div>
+
+        <strong>
+          Ask and compare
+        </strong>
+
+        <small>
+          Explore papers through grounded questions and comparisons.
+        </small>
+
+      </div>
+
+    </div>
+
+
+    <div class="start-step">
+
+      <span class="start-number">
+        4
+      </span>
+
+      <div>
+
+        <strong>
+          Save and export
+        </strong>
+
+        <small>
+          Preserve useful notes, citations and research conversations.
+        </small>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+
+<!-- ======================================================
+     GROUNDED BY DESIGN
+     ====================================================== -->
+
+<section class="shell evidence-home-section">
+
+  <div class="evidence-home-copy">
+
+    <span class="eyebrow">
+      Grounded by design
+    </span>
+
+    <h2>
+      Know where every answer
+      comes from.
+    </h2>
+
+    <p>
+      ScholarSync uses evidence retrieved from your research papers
+      to support its answers. Citations stay connected to the original
+      document and page, so you can inspect the evidence yourself.
+    </p>
+
+    <div class="evidence-points">
+
+      <div class="evidence-point">
+        <span>01</span>
+
+        <div>
+          <strong>Retrieved from your papers</strong>
+          <small>
+            Answers are grounded in evidence selected from your documents.
+          </small>
+        </div>
+      </div>
+
+
+      <div class="evidence-point">
+        <span>02</span>
+
+        <div>
+          <strong>Page-aware citations</strong>
+          <small>
+            Follow the citation back to the page that supports the answer.
+          </small>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="evidence-home-card">
+
+    <div class="evidence-card-top">
+
+      <span class="evidence-card-label">
+        Evidence preview
+      </span>
+
+      <span class="evidence-card-status">
+        Grounded
+      </span>
+
+    </div>
+
+
+    <div class="evidence-example-question">
+
+      <span>
+        Research question
+      </span>
+
+      <strong>
+        What methodology does the paper use?
+      </strong>
+
+    </div>
+
+
+    <div class="evidence-example-answer">
+
+      <div class="evidence-answer-head">
+
+        <span class="evidence-brand-mark">
+          S
+        </span>
+
+        <div class="evidence-answer-meta">
+
+          <strong>
+            ScholarSync
+          </strong>
+
+          <small>
+            Evidence-grounded answer
+          </small>
+
+        </div>
+
+      </div>
+
+
+      <p>
+        The study uses a structured experimental methodology
+        supported by the procedures described in the paper and
+        validated through the reported research process.
+      </p>
+
+
+      <div class="evidence-divider"></div>
+
+
+      <span class="citation-label">
+        Supporting evidence
+      </span>
+
+
+      <div class="evidence-example-citations">
+
+        <span>
+          [1] Paper · Page 4
+        </span>
+
+        <span>
+          [2] Paper · Page 6
+        </span>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+
+<!-- ======================================================
+     FINAL CTA
+     ====================================================== -->
+
+<section class="shell home-final-cta">
+
+  <div class="home-final-copy">
+
+    <span class="eyebrow">
+      Start researching
+    </span>
+
+    <h2>
+      Your papers deserve more
+      than a generic AI answer.
+    </h2>
+
+    <p>
+      Research with your own documents, your own evidence,
+      and citations you can actually inspect.
+    </p>
+
+  </div>
+
+
+  <div class="home-final-actions">
+
+    {% if user.is_authenticated %}
+
+      <a
+        class="button button-accent"
+        href="{% url 'workspace-list' %}"
+      >
+        Open your workspaces
+      </a>
+
+    {% else %}
+
+      <a
+        class="button button-accent"
+        href="{% url 'register' %}"
+      >
+        Create account
+      </a>
+
+    {% endif %}
+
+
+    <a
+      class="button button-secondary home-cta-outline"
+      href="{% url 'demo-home' %}"
+    >
+      Explore demo
+    </a>
+
+  </div>
+
+</section>
+
+
 {% endblock %}

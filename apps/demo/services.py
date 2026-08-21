@@ -171,6 +171,46 @@ def _retrieval_plan(question):
             total_limit=10,
         )
 
+    # Broad attention questions are a flagship demo path.
+    # Keep this after the Transformer route so prompts such as
+    # "How does multi-head self-attention work?" remain Transformer-specific.
+    if any(
+        term in normalized
+        for term in (
+            " attention mechanism ",
+            " attention mechanisms ",
+            " attention model ",
+            " attention models ",
+            " attention based ",
+            " explain attention ",
+            " what is attention ",
+            " about attention ",
+            " how does attention work ",
+        )
+    ):
+        return RetrievalPlan(
+            intent="attention-overview",
+            per_document_queries={
+                "effective-attention-nmt": (
+                    question,
+                    "attention based models encoder decoder hidden states context vector alignment",
+                    "global attention local attention source hidden states context vector",
+                ),
+                "convolutional-seq2seq": (
+                    question,
+                    "separate attention mechanism decoder layer encoder representations",
+                    "multiple attention convolutional sequence generation decoder",
+                ),
+                "attention-is-all-you-need": (
+                    question,
+                    "scaled dot product attention queries keys values softmax",
+                    "multi head self attention encoder decoder Transformer",
+                ),
+            },
+            per_document_limit=2,
+            total_limit=6,
+        )
+
     if any(term in normalized for term in (" cnn ", "convolution", "conv s2s", "convseq2seq", "gated linear", " glu ")):
         return RetrievalPlan(
             intent="convolutional",
@@ -213,6 +253,9 @@ def _retrieval_plan(question):
 
 
 CORE_PAGE_WEIGHTS = {
+    ("attention-overview", "effective-attention-nmt"): {2: 1.05, 3: 1.45, 4: 1.40, 5: 1.00},
+    ("attention-overview", "convolutional-seq2seq"): {1: 1.10, 2: 1.25, 3: 1.45, 4: 1.35},
+    ("attention-overview", "attention-is-all-you-need"): {2: 1.20, 3: 1.30, 4: 1.50, 5: 1.40},
     ("formula", "attention-is-all-you-need"): {3: 1.20, 4: 1.65, 5: 1.60, 6: 1.55, 7: 1.55, 8: 0.82},
     ("recurrent-attention", "effective-attention-nmt"): {2: 1.10, 3: 1.35, 4: 1.45, 5: 1.05},
     ("transformer", "attention-is-all-you-need"): {1: 1.05, 2: 1.35, 3: 1.50, 4: 1.45, 5: 1.45, 6: 1.30, 8: 0.82, 9: 0.76},
@@ -275,6 +318,15 @@ def _fused_search(queries, items, limit=8, page_weights=None):
 
 def _intent_anchor_chunks(intent):
     """Pin core passages so broad queries cover every essential concept."""
+    if intent == "attention-overview":
+        return [
+            _find_chunk("effective-attention-nmt", 3, "3 Attention-based Models"),
+            _find_chunk("effective-attention-nmt", 4, "3.2 Local Attention"),
+            _find_chunk("convolutional-seq2seq", 3, "separate attention mechanism"),
+            _find_chunk("convolutional-seq2seq", 4, "multiple attention"),
+            _find_chunk("attention-is-all-you-need", 4, "Scaled Dot-Product Attention"),
+            _find_chunk("attention-is-all-you-need", 4, "Multi-head attention allows"),
+        ]
     if intent == "transformer":
         return [
             _find_chunk("attention-is-all-you-need", 2, "3 Model Architecture"),
@@ -334,32 +386,112 @@ def _fallback_for_intent(intent):
             _find_chunk("attention-is-all-you-need", 4, "Attention(Q, K, V )"),
             _find_chunk("attention-is-all-you-need", 5, "MultiHead(Q, K, V )"),
             _find_chunk("attention-is-all-you-need", 5, "FFN(x)"),
-            _find_chunk("attention-is-all-you-need", 6, "sine and cosine"),
+            _find_chunk(
+                "attention-is-all-you-need",
+                6,
+                "That is, each dimension of the positional encoding",
+            ),
             _find_chunk("attention-is-all-you-need", 7, "lrate ="),
         ]
         answer = (
             "## Mathematical formulas in *Attention Is All You Need*\n\n"
-            "1. **Residual connection and layer normalization**\n\n"
+
+            "### 1. Residual connection and layer normalization\n\n"
             "$$\\operatorname{LayerNorm}(x + \\operatorname{Sublayer}(x))$$\n\n"
             "The input $x$ is added to the sub-layer output before normalization. [1]\n\n"
-            "2. **Scaled dot-product attention**\n\n"
-            "$$\\operatorname{Attention}(Q,K,V)=\\operatorname{softmax}\\left(\\frac{QK^{T}}{\\sqrt{d_k}}\\right)V$$\n\n"
-            "The factor $\\sqrt{d_k}$ prevents large dot products from pushing softmax into very small-gradient regions. [2]\n\n"
-            "3. **Multi-head attention**\n\n"
-            "$$\\operatorname{MultiHead}(Q,K,V)=\\operatorname{Concat}(head_1,\\ldots,head_h)W^O$$\n\n"
-            "$$head_i=\\operatorname{Attention}(QW_i^Q,KW_i^K,VW_i^V)$$\n\n"
+
+            "### 2. Scaled dot-product attention\n\n"
+            "$$\\operatorname{Attention}(Q,K,V)"
+            "=\\operatorname{softmax}\\left("
+            "\\frac{QK^{T}}{\\sqrt{d_k}}"
+            "\\right)V$$\n\n"
+            "The factor $\\sqrt{d_k}$ prevents large dot products from pushing "
+            "softmax into very small-gradient regions. [2]\n\n"
+
+            "### 3. Multi-head attention\n\n"
+            "$$\\operatorname{MultiHead}(Q,K,V)"
+            "=\\operatorname{Concat}(head_1,\\ldots,head_h)W^O$$\n\n"
+            "$$head_i=\\operatorname{Attention}"
+            "(QW_i^Q,KW_i^K,VW_i^V)$$\n\n"
             "Each head uses separate learned projections. [3]\n\n"
-            "4. **Position-wise feed-forward network**\n\n"
-            "$$\\operatorname{FFN}(x)=\\max(0,xW_1+b_1)W_2+b_2$$\n\n"
-            "This two-layer network is applied independently at every sequence position. [4]\n\n"
-            "5. **Sinusoidal positional encoding**\n\n"
-            "$$PE_{(pos,2i)}=\\sin\\left(pos/10000^{2i/d_{model}}\\right)$$\n\n"
-            "$$PE_{(pos,2i+1)}=\\cos\\left(pos/10000^{2i/d_{model}}\\right)$$\n\n"
-            "These terms add sequence-order information without recurrence. [5]\n\n"
-            "6. **Learning-rate schedule**\n\n"
-            "$$lrate=d_{model}^{-0.5}\\min(step_{num}^{-0.5},step_{num}\\,warmup_{steps}^{-1.5})$$\n\n"
-            "The rate rises during warm-up and then decays with the inverse square root of the step number. [6]"
+
+            "### 4. Position-wise feed-forward network\n\n"
+            "$$\\operatorname{FFN}(x)"
+            "=\\max(0,xW_1+b_1)W_2+b_2$$\n\n"
+            "The paper applies this two-layer feed-forward network independently "
+            "at each sequence position. [4]\n\n"
+
+            "### 5. Sinusoidal positional encoding\n\n"
+            "$$PE_{(pos,2i)}="
+            "\\sin\\left(pos/10000^{2i/d_{model}}\\right)$$\n\n"
+            "$$PE_{(pos,2i+1)}="
+            "\\cos\\left(pos/10000^{2i/d_{model}}\\right)$$\n\n"
+            "The paper uses sine and cosine functions of different frequencies "
+            "to encode token positions. [5]\n\n"
+
+            "### 6. Learning-rate schedule\n\n"
+            "$$lrate=d_{model}^{-0.5}"
+            "\\min(step_{num}^{-0.5},"
+            "step_{num}\\,warmup_{steps}^{-1.5})$$\n\n"
+            "The rate rises during warm-up and then decays with the inverse "
+            "square root of the step number. [6]"
         )
+        return answer, chunks
+
+    if intent == "attention-overview":
+        chunks = [
+            _find_chunk(
+                "effective-attention-nmt",
+                3,
+                "A global context vector",
+            ),
+            _find_chunk(
+                "effective-attention-nmt",
+                4,
+                "avoiding the expensive computation",
+            ),
+            _find_chunk(
+                "convolutional-seq2seq",
+                4,
+                "attention of the first layer determines a useful source context",
+            ),
+            _find_chunk(
+                "attention-is-all-you-need",
+                4,
+                "Scaled Dot-Product Attention",
+            ),
+            _find_chunk(
+                "attention-is-all-you-need",
+                4,
+                "Multi-Head Attention consists",
+            ),
+        ]
+
+        answer = (
+            "## Attention mechanism\n\n"
+            "An **attention mechanism** lets a sequence model selectively weight source information "
+            "that is relevant to the current prediction. In attention-based neural machine translation, "
+            "the decoder derives a context vector from encoder hidden states using learned alignment "
+            "weights. [1]\n\n"
+            "### Global and local attention\n\n"
+            "Luong et al. distinguish **global attention**, which considers the full set of source hidden "
+            "states, from **local attention**, which focuses on a smaller window around an aligned source "
+            "position. The local approach reduces the amount of source information considered for each "
+            "target step. [1][2]\n\n"
+            "### Attention in convolutional sequence models\n\n"
+            "Gehring et al. retain attention inside their convolutional decoder. Attention computed by an "
+            "earlier decoder layer provides source context that later layers can use when computing their "
+            "own attention. [3]\n\n"
+            "### Self-attention in the Transformer\n\n"
+            "The Transformer makes attention the central mechanism for mixing sequence information. "
+            "**Scaled dot-product attention** compares queries with keys and uses the resulting weights "
+            "to combine values, while **multi-head attention** performs several learned attention "
+            "operations in parallel. [4][5]\n\n"
+            "Across the three papers, attention therefore develops from an alignment mechanism used with "
+            "recurrent models, to repeated attention within a convolutional decoder, and finally to the "
+            "Transformer's primary sequence-processing mechanism. [1][3][4]"
+        )
+
         return answer, chunks
 
     if intent == "transformer":
@@ -504,6 +636,63 @@ def _is_acknowledgement(normalized):
     )
 
 
+_ANSWER_CITATION_RE = re.compile(r"\[(\d+)\]")
+
+
+def _has_claim_local_citations(answer):
+    """Reject citation-summary lines that are detached from factual claims.
+
+    Good:
+        Global attention considers all source states. [1]
+
+    Bad:
+        Global attention considers all source states.
+
+        [1][2][3]
+
+    A trailing ``Sources: [1][2]`` line is also treated as detached.
+    """
+    saw_claim_local = False
+    saw_detached = False
+
+    lines = (
+        str(answer or "")
+        .replace("\r\n", "\n")
+        .replace("\r", "\n")
+        .split("\n")
+    )
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or not _ANSWER_CITATION_RE.search(line):
+            continue
+
+        without_citations = _ANSWER_CITATION_RE.sub("", line)
+        cleaned = re.sub(r"[*_`#>|]+", " ", without_citations)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip(" \t,:;.-()[]")
+
+        if not cleaned:
+            saw_detached = True
+            continue
+
+        if re.fullmatch(
+            r"(?:sources?|citations?|evidence)(?:\s+used)?",
+            cleaned,
+            flags=re.I,
+        ):
+            saw_detached = True
+            continue
+
+        # Require a small amount of real prose so a label or heading followed
+        # by citation markers is not mistaken for a grounded factual claim.
+        if len(re.findall(r"[A-Za-z]{2,}", cleaned)) >= 2:
+            saw_claim_local = True
+        else:
+            saw_detached = True
+
+    return saw_claim_local and not saw_detached
+
+
 def answer_demo(question, history=None):
     history = history or []
     normalized = _normalize_question(question)
@@ -552,9 +741,61 @@ def answer_demo(question, history=None):
             "hits": [],
         }
 
-    contextual_question = _retrieval_query(question, history)
-    plan = _retrieval_plan(contextual_question)
+    contextual_question = _retrieval_query(
+        question,
+        history,
+    )
+
+    plan = _retrieval_plan(
+        contextual_question
+    )
+
+    # The public demo uses a fixed, curated three-paper library.
+    #
+    # These two flagship routes benefit from deterministic output:
+    #
+    # - attention-overview:
+    #   guarantees strong cross-paper grounding.
+    #
+    # - formula:
+    #   guarantees valid, tested LaTeX rather than allowing model
+    #   formatting variance to corrupt equations in the browser/PDF.
+    if plan.intent in {
+        "attention-overview",
+        "formula",
+    }:
+        curated = _fallback_for_intent(
+            plan.intent
+        )
+
+        if curated is not None:
+            answer, chunks = curated
+
+            hits = [
+                SearchHit(
+                    item=chunk,
+                    score=10.0 - index,
+                )
+                for index, chunk in enumerate(
+                    chunks
+                )
+                if chunk is not None
+            ]
+
+            for hit in hits:
+                hit.item.page_number = (
+                    hit.item.page
+                )
+
+            return {
+                "answer": answer,
+                "confidence": "high",
+                "model": "grounded-demo-curated",
+                "hits": hits,
+            }
+
     hits = _retrieve(plan)
+
     for hit in hits:
         hit.item.page_number = hit.item.page
 
@@ -565,9 +806,17 @@ def answer_demo(question, history=None):
         answer_mode=plan.intent,
     )
 
-    # A polished, evidence-grounded fallback is preferable to dumping raw
-    # passages when the free model endpoint is temporarily unavailable.
-    if model == "retrieval-only":
+    # A public demo should not showcase a raw retrieval dump or an answer
+    # whose citations are detached from the claims they are supposed to support.
+    needs_curated_fallback = (
+        model == "retrieval-only"
+        or (
+            bool(hits)
+            and not _has_claim_local_citations(answer)
+        )
+    )
+
+    if needs_curated_fallback:
         curated = _fallback_for_intent(plan.intent)
         if curated is not None:
             answer, chunks = curated

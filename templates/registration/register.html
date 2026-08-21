@@ -1,3 +1,167 @@
-{% extends "base.html" %}{% block title %}Create account - ScholarSync{% endblock %}{% block content %}
-<section class="auth-shell"><div class="auth-card"><span class="eyebrow">Private research space</span><h1>Create your account</h1><form method="post" class="stack-form">{% csrf_token %}{{ form.as_p }}<button class="button" type="submit">Create account</button></form><p class="form-foot">Already registered? <a href="{% url 'login' %}">Log in</a></p></div></section>
+{% extends "base.html" %}
+
+{% block title %}
+Create account - ScholarSync
+{% endblock %}
+
+{% block content %}
+
+<div class="auth-editorial-page">
+
+  <section class="auth-editorial-shell">
+
+    <div class="auth-editorial-card auth-register-card">
+
+      <header class="auth-editorial-header">
+
+        <span class="eyebrow">
+          Private research space
+        </span>
+
+        <h1>
+          Create your account
+        </h1>
+
+        <p>
+          Create private workspaces for papers,
+          evidence-grounded conversations, citations,
+          and research notes.
+        </p>
+
+      </header>
+
+
+      <form
+        method="post"
+        class="auth-editorial-form"
+      >
+
+        {% csrf_token %}
+
+
+        {% if form.non_field_errors %}
+          <div class="auth-form-errors">
+            {{ form.non_field_errors }}
+          </div>
+        {% endif %}
+
+
+
+        <div class="auth-field">
+
+          <label for="{{ form.username.id_for_label }}">
+            Username
+          </label>
+
+          <span class="auth-field-help">
+            150 characters or fewer.
+            Letters, digits and @/./+/-/_ only.
+          </span>
+
+          {{ form.username }}
+
+          {% if form.username.errors %}
+            <div class="auth-field-errors">
+              {{ form.username.errors }}
+            </div>
+          {% endif %}
+
+        </div>
+
+
+
+        <div class="auth-field">
+
+          <label for="{{ form.email.id_for_label }}">
+            Email
+          </label>
+
+          {{ form.email }}
+
+          {% if form.email.errors %}
+            <div class="auth-field-errors">
+              {{ form.email.errors }}
+            </div>
+          {% endif %}
+
+        </div>
+
+
+
+        <div class="auth-field">
+
+          <label for="{{ form.password1.id_for_label }}">
+            Password
+          </label>
+
+          {{ form.password1 }}
+
+          {% if form.password1.help_text %}
+
+            <div class="auth-password-rules">
+              {{ form.password1.help_text|safe }}
+            </div>
+
+          {% endif %}
+
+          {% if form.password1.errors %}
+            <div class="auth-field-errors">
+              {{ form.password1.errors }}
+            </div>
+          {% endif %}
+
+        </div>
+
+
+
+        <div class="auth-field">
+
+          <label for="{{ form.password2.id_for_label }}">
+            Confirm password
+          </label>
+
+          <span class="auth-field-help">
+            Enter the same password again for verification.
+          </span>
+
+          {{ form.password2 }}
+
+          {% if form.password2.errors %}
+            <div class="auth-field-errors">
+              {{ form.password2.errors }}
+            </div>
+          {% endif %}
+
+        </div>
+
+
+
+        <button
+          class="button auth-primary-action"
+          type="submit"
+        >
+          Create account
+        </button>
+
+      </form>
+
+
+      <footer class="auth-editorial-foot">
+
+        <span>
+          Already have an account?
+        </span>
+
+        <a href="{% url 'login' %}">
+          Log in
+        </a>
+
+      </footer>
+
+    </div>
+
+  </section>
+
+</div>
+
 {% endblock %}

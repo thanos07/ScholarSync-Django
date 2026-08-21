@@ -1,3 +1,119 @@
-{% extends "base.html" %}{% block title %}Log in - ScholarSync{% endblock %}{% block content %}
-<section class="auth-shell"><div class="auth-card"><span class="eyebrow">Welcome back</span><h1>Log in to your workspace</h1><form method="post" class="stack-form">{% csrf_token %}{{ form.as_p }}<button class="button" type="submit">Log in</button></form><p class="form-foot">No account? <a href="{% url 'register' %}">Create one</a></p></div></section>
+{% extends "base.html" %}
+
+{% block title %}
+Log in - ScholarSync
+{% endblock %}
+
+{% block content %}
+
+<div class="auth-editorial-page">
+
+  <section class="auth-editorial-shell">
+
+    <div class="auth-editorial-card auth-login-card">
+
+      <header class="auth-editorial-header">
+
+        <span class="eyebrow">
+          Welcome back
+        </span>
+
+        <h1>
+          Log in to your workspace
+        </h1>
+
+        <p>
+          Continue reading, asking, and citing
+          across your private research spaces.
+        </p>
+
+      </header>
+
+
+      <form
+        method="post"
+        class="auth-editorial-form"
+      >
+
+        {% csrf_token %}
+
+
+        {% if form.non_field_errors %}
+          <div class="auth-form-errors">
+            {{ form.non_field_errors }}
+          </div>
+        {% endif %}
+
+
+        <div class="auth-field">
+
+          <label for="{{ form.username.id_for_label }}">
+            Username
+          </label>
+
+          {{ form.username }}
+
+          {% if form.username.errors %}
+            <div class="auth-field-errors">
+              {{ form.username.errors }}
+            </div>
+          {% endif %}
+
+        </div>
+
+
+        <div class="auth-field">
+
+          <label for="{{ form.password.id_for_label }}">
+            Password
+          </label>
+
+          {{ form.password }}
+
+          {% if form.password.errors %}
+            <div class="auth-field-errors">
+              {{ form.password.errors }}
+            </div>
+          {% endif %}
+
+        </div>
+
+
+        {% if next %}
+          <input
+            type="hidden"
+            name="next"
+            value="{{ next }}"
+          >
+        {% endif %}
+
+
+        <button
+          class="button auth-primary-action"
+          type="submit"
+        >
+          Log in
+        </button>
+
+      </form>
+
+
+      <footer class="auth-editorial-foot">
+
+        <span>
+          New to ScholarSync?
+        </span>
+
+        <a href="{% url 'register' %}">
+          Create an account
+        </a>
+
+      </footer>
+
+    </div>
+
+  </section>
+
+</div>
+
 {% endblock %}
