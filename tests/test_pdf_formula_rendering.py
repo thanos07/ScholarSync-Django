@@ -1,14 +1,17 @@
 from django.test import SimpleTestCase
+
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import HRFlowable, ListFlowable
 
 from apps.conversations.pdf_export import (
+    _inline_markup,
     _latex_to_pdf_markup,
     _markdown_flowables,
 )
 
 
 class PdfFormulaRenderingTests(SimpleTestCase):
+
     def test_matrix_uses_font_safe_multiline_fallback(self):
         raw = (
             r"A = \begin{bmatrix}"
@@ -20,16 +23,56 @@ class PdfFormulaRenderingTests(SimpleTestCase):
 
         rendered = _latex_to_pdf_markup(raw)
 
-        self.assertNotIn(r"\begin{bmatrix}", rendered)
-        self.assertNotIn(r"\end{bmatrix}", rendered)
-        self.assertNotIn(r"\vdots", rendered)
-        self.assertNotIn(r"\ddots", rendered)
-        self.assertNotIn("⋮", rendered)
-        self.assertNotIn("⋱", rendered)
-        self.assertIn("<br/>", rendered)
-        self.assertIn(":", rendered)
-        self.assertIn("...", rendered)
-        self.assertIn("a<sub>1n</sub>", rendered)
+        self.assertNotIn(
+            r"\begin{bmatrix}",
+            rendered,
+        )
+
+        self.assertNotIn(
+            r"\end{bmatrix}",
+            rendered,
+        )
+
+        self.assertNotIn(
+            r"\vdots",
+            rendered,
+        )
+
+        self.assertNotIn(
+            r"\ddots",
+            rendered,
+        )
+
+        self.assertNotIn(
+            "⋮",
+            rendered,
+        )
+
+        self.assertNotIn(
+            "⋱",
+            rendered,
+        )
+
+        self.assertIn(
+            "<br/>",
+            rendered,
+        )
+
+        self.assertIn(
+            ":",
+            rendered,
+        )
+
+        self.assertIn(
+            "...",
+            rendered,
+        )
+
+        self.assertIn(
+            "a<sub>1n</sub>",
+            rendered,
+        )
+
 
     def test_cases_use_readable_ascii_membership(self):
         raw = (
@@ -41,25 +84,79 @@ class PdfFormulaRenderingTests(SimpleTestCase):
 
         rendered = _latex_to_pdf_markup(raw)
 
-        self.assertNotIn(r"\begin{cases}", rendered)
-        self.assertNotIn(r"\end{cases}", rendered)
-        self.assertNotIn(r"\in", rendered)
-        self.assertNotIn("∈", rendered)
-        self.assertIn("<br/>", rendered)
-        self.assertIn("j in J<sub>1</sub>", rendered)
-        self.assertIn("j in J<sub>2</sub>", rendered)
-        self.assertIn("p<sub>j</sub><super>+</super>", rendered)
+        self.assertNotIn(
+            r"\begin{cases}",
+            rendered,
+        )
+
+        self.assertNotIn(
+            r"\end{cases}",
+            rendered,
+        )
+
+        self.assertNotIn(
+            r"\in",
+            rendered,
+        )
+
+        self.assertNotIn(
+            "∈",
+            rendered,
+        )
+
+        self.assertIn(
+            "<br/>",
+            rendered,
+        )
+
+        self.assertIn(
+            "j in J<sub>1</sub>",
+            rendered,
+        )
+
+        self.assertIn(
+            "j in J<sub>2</sub>",
+            rendered,
+        )
+
+        self.assertIn(
+            "p<sub>j</sub><super>+</super>",
+            rendered,
+        )
+
 
     def test_xi_and_pm_are_font_safe(self):
         rendered = _latex_to_pdf_markup(
-            r"\xi_i = \bar d_i^- / (\bar d_i^+ + \bar d_i^-), \quad \pm 1"
+            r"\xi_i = \bar d_i^- / "
+            r"(\bar d_i^+ + \bar d_i^-), "
+            r"\quad \pm 1"
         )
 
-        self.assertNotIn(r"\xi", rendered)
-        self.assertNotIn("ξ", rendered)
-        self.assertNotIn(r"\pm", rendered)
-        self.assertIn("xi<sub>i</sub>", rendered)
-        self.assertIn("+/-", rendered)
+        self.assertNotIn(
+            r"\xi",
+            rendered,
+        )
+
+        self.assertNotIn(
+            "ξ",
+            rendered,
+        )
+
+        self.assertNotIn(
+            r"\pm",
+            rendered,
+        )
+
+        self.assertIn(
+            "xi<sub>i</sub>",
+            rendered,
+        )
+
+        self.assertIn(
+            "+/-",
+            rendered,
+        )
+
 
     def test_distance_formula_removes_layout_commands(self):
         raw = (
@@ -70,23 +167,91 @@ class PdfFormulaRenderingTests(SimpleTestCase):
 
         rendered = _latex_to_pdf_markup(raw)
 
-        self.assertNotIn(r"\sqrt", rendered)
-        self.assertNotIn(r"\sum", rendered)
-        self.assertNotIn(r"\quad", rendered)
-        self.assertNotIn(r"\dots", rendered)
-        self.assertIn("√", rendered)
-        self.assertIn("∑", rendered)
-        self.assertIn("…", rendered)
+        self.assertNotIn(
+            r"\sqrt",
+            rendered,
+        )
+
+        self.assertNotIn(
+            r"\sum",
+            rendered,
+        )
+
+        self.assertNotIn(
+            r"\quad",
+            rendered,
+        )
+
+        self.assertNotIn(
+            r"\dots",
+            rendered,
+        )
+
+        self.assertIn(
+            "√",
+            rendered,
+        )
+
+        self.assertIn(
+            "∑",
+            rendered,
+        )
+
+        self.assertIn(
+            "…",
+            rendered,
+        )
+
 
     def test_markdown_separator_becomes_rule(self):
-        flowables = _markdown_flowables("---", {}, 400)
+        flowables = _markdown_flowables(
+            "---",
+            {},
+            400,
+        )
 
-        self.assertEqual(len(flowables), 1)
-        self.assertIsInstance(flowables[0], HRFlowable)
+        self.assertEqual(
+            len(flowables),
+            1,
+        )
+
+        self.assertIsInstance(
+            flowables[0],
+            HRFlowable,
+        )
+
+
+    def test_pdf_markdown_preserves_filename_underscores(self):
+        filename = (
+            "44_Songkhla, Thailand_GIS_AHP_2019"
+        )
+
+        rendered = _inline_markup(
+            filename
+        )
+
+        self.assertEqual(
+            rendered,
+            filename,
+        )
+
+
+    def test_pdf_markdown_still_supports_underscore_italics(self):
+        rendered = _inline_markup(
+            "This is _important text_."
+        )
+
+        self.assertEqual(
+            rendered,
+            "This is <i>important text</i>.",
+        )
+
 
     def test_unordered_list_does_not_start_at_one(self):
         styles = {
-            "Body": ParagraphStyle("Body"),
+            "Body": ParagraphStyle(
+                "Body"
+            ),
         }
 
         flowables = _markdown_flowables(
@@ -95,7 +260,22 @@ class PdfFormulaRenderingTests(SimpleTestCase):
             400,
         )
 
-        self.assertEqual(len(flowables), 1)
-        self.assertIsInstance(flowables[0], ListFlowable)
-        self.assertEqual(flowables[0]._bulletType, "bullet")
-        self.assertEqual(flowables[0]._start, "bulletchar")
+        self.assertEqual(
+            len(flowables),
+            1,
+        )
+
+        self.assertIsInstance(
+            flowables[0],
+            ListFlowable,
+        )
+
+        self.assertEqual(
+            flowables[0]._bulletType,
+            "bullet",
+        )
+
+        self.assertEqual(
+            flowables[0]._start,
+            "bulletchar",
+        )
