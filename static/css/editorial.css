@@ -3149,3 +3149,669 @@ h3 {
         padding: 14px;
     }
 }
+
+/* =========================================================
+   44. PUBLIC DEMO — WORKSPACE VISUAL PARITY
+   ========================================================= */
+
+
+/* ---------------------------------------------------------
+   Demo information bar
+   --------------------------------------------------------- */
+
+.demo-banner {
+    width: min(1480px, calc(100% - 32px));
+
+    margin: 18px auto 10px;
+    padding: 10px 14px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+
+    background: var(--surface-white);
+
+    border: 1px solid var(--border);
+    border-radius: 14px;
+
+    box-shadow:
+        0 4px 16px rgba(61, 35, 28, 0.035);
+}
+
+
+.demo-banner-copy {
+    min-width: 0;
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+
+.demo-banner-copy > div {
+    min-width: 0;
+
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+
+    flex-wrap: wrap;
+}
+
+
+.demo-banner-copy b {
+    color: var(--primary-dark);
+
+    font-family: var(--font-serif);
+    font-size: 0.98rem;
+    font-weight: 700;
+}
+
+
+.demo-banner-copy > div > span {
+    color: var(--muted);
+
+    font-size: 0.79rem;
+}
+
+
+.demo-mode-pill {
+    flex: 0 0 auto;
+
+    display: inline-flex;
+    align-items: center;
+
+    min-height: 28px;
+
+    padding: 5px 9px;
+
+    color: var(--accent-dark);
+    background: var(--accent-soft);
+
+    border: 1px solid rgba(189, 135, 23, 0.26);
+    border-radius: 999px;
+
+    font-size: 0.67rem;
+    font-weight: 800;
+
+    letter-spacing: 0.075em;
+    text-transform: uppercase;
+}
+
+
+.demo-banner-actions {
+    flex: 0 0 auto;
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+
+.demo-clear-action {
+    color: var(--muted);
+
+    font-size: 0.8rem;
+    font-weight: 700;
+
+    text-decoration: none;
+}
+
+
+.demo-clear-action:hover {
+    color: var(--primary);
+}
+
+
+/* ---------------------------------------------------------
+   Main Demo workspace
+   --------------------------------------------------------- */
+
+.demo-shell {
+    width: min(1480px, calc(100% - 32px));
+
+    margin: 0 auto 20px;
+
+    grid-template-columns:
+        250px
+        minmax(0, 1fr)
+        300px;
+
+    min-height: calc(100vh - 174px);
+
+    border: 1px solid var(--border);
+    border-radius: 18px;
+
+    overflow: hidden;
+
+    background: var(--surface-white);
+
+    box-shadow:
+        0 12px 34px rgba(61, 35, 28, 0.055);
+}
+
+
+/* ---------------------------------------------------------
+   Demo library
+   --------------------------------------------------------- */
+
+.demo-shell .research-sidebar {
+    padding: 22px 18px;
+
+    background:
+        linear-gradient(
+            180deg,
+            #fff8f1 0%,
+            var(--surface-soft) 100%
+        );
+
+    border-right: 1px solid var(--border);
+}
+
+
+.demo-shell .research-sidebar > .eyebrow {
+    margin-bottom: 5px;
+}
+
+
+.demo-shell .research-sidebar > h2 {
+    margin: 0 0 17px;
+
+    color: var(--primary-dark);
+
+    font-family: var(--font-serif);
+    font-size: 1.28rem;
+    line-height: 1.15;
+}
+
+
+/* Paper cards */
+
+.demo-shell .side-document {
+    width: 100%;
+
+    margin-bottom: 9px;
+    padding: 12px;
+
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+
+    background: rgba(255, 255, 255, 0.72);
+
+    border: 1px solid var(--border);
+    border-radius: 12px;
+
+    box-shadow: none;
+
+    transition:
+        border-color 140ms ease,
+        background 140ms ease,
+        transform 140ms ease;
+}
+
+
+.demo-shell .side-document:hover {
+    background: var(--surface-white);
+
+    border-color: #d7b9a5;
+
+    transform: translateY(-1px);
+}
+
+
+.demo-shell .side-document.active {
+    background: var(--primary-soft);
+
+    border-color: transparent;
+}
+
+
+.demo-shell .side-document > span {
+    flex: 0 0 auto;
+
+    margin-top: 1px;
+
+    color: var(--primary);
+
+    font-size: 0.62rem;
+    font-weight: 900;
+
+    letter-spacing: 0.04em;
+}
+
+
+.demo-shell .side-document > div {
+    min-width: 0;
+}
+
+
+.demo-shell .side-document b {
+    display: -webkit-box;
+
+    overflow: hidden;
+
+    color: var(--text);
+
+    font-size: 0.8rem;
+    line-height: 1.35;
+
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+
+    overflow-wrap: anywhere;
+}
+
+
+.demo-shell .side-document small {
+    display: block;
+
+    margin-top: 5px;
+
+    color: var(--muted);
+
+    font-size: 0.68rem;
+    line-height: 1.3;
+}
+
+
+/* ---------------------------------------------------------
+   Suggested research questions
+   --------------------------------------------------------- */
+
+.demo-note {
+    margin-top: 20px;
+    padding-top: 17px;
+
+    border-top: 1px solid var(--border);
+}
+
+
+.demo-note > b {
+    display: block;
+
+    margin-bottom: 9px;
+
+    color: var(--muted);
+
+    font-size: 0.72rem;
+    font-weight: 800;
+
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+
+.suggested-question {
+    width: 100%;
+
+    margin: 0 0 7px;
+    padding: 9px 10px;
+
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.68);
+
+    border: 1px solid var(--border);
+    border-radius: 10px;
+
+    font: inherit;
+    font-size: 0.72rem;
+    line-height: 1.4;
+
+    text-align: left;
+
+    cursor: pointer;
+
+    transition:
+        background 140ms ease,
+        border-color 140ms ease,
+        color 140ms ease;
+}
+
+
+.suggested-question:hover {
+    color: var(--primary-dark);
+    background: var(--surface-white);
+
+    border-color: #d6b39d;
+}
+
+
+/* ---------------------------------------------------------
+   Conversation header
+   --------------------------------------------------------- */
+
+.demo-shell .chat-head {
+    min-height: 74px;
+
+    padding: 14px 18px;
+
+    display: flex;
+    align-items: center;
+
+    background: var(--surface-white);
+
+    border-bottom: 1px solid var(--border);
+}
+
+
+.demo-shell .chat-head-title {
+    width: 100%;
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+
+.demo-shell .chat-head-title > div {
+    min-width: 0;
+}
+
+
+.demo-shell .chat-head .eyebrow {
+    display: block;
+
+    margin-bottom: 3px;
+}
+
+
+.demo-shell .chat-head h1 {
+    margin: 0;
+
+    color: var(--primary-dark);
+
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    line-height: 1.2;
+}
+
+
+.demo-shell .sidebar-toggle {
+    flex: 0 0 auto;
+
+    min-height: 34px;
+
+    padding: 7px 10px;
+
+    background: var(--surface-white);
+    color: var(--primary);
+
+    border: 1px solid var(--border);
+    border-radius: 9px;
+
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+
+/* ---------------------------------------------------------
+   Chat area
+   --------------------------------------------------------- */
+
+.demo-shell .message-stream {
+    background:
+        linear-gradient(
+            180deg,
+            #fffdf9 0%,
+            #fffaf5 100%
+        );
+}
+
+
+.demo-shell .assistant-message {
+    background: transparent;
+}
+
+
+.demo-shell .user-message {
+    max-width: min(78%, 760px);
+
+    margin-left: auto;
+
+    background: var(--primary-soft);
+
+    border-color: transparent;
+}
+
+
+.demo-shell .message-role {
+    letter-spacing: 0.015em;
+}
+
+
+/* Empty state */
+
+.demo-shell .chat-empty {
+    max-width: 520px;
+
+    margin: auto;
+    padding: 44px 32px;
+
+    text-align: center;
+}
+
+
+.chat-empty-logo {
+    width: 52px;
+    height: 52px;
+
+    margin: 0 auto 16px;
+
+    display: block;
+}
+
+
+.demo-shell .chat-empty h2 {
+    margin-bottom: 8px;
+
+    color: var(--primary-dark);
+
+    font-family: var(--font-serif);
+    font-size: 1.4rem;
+}
+
+
+.demo-shell .chat-empty p {
+    max-width: 440px;
+
+    margin: 0 auto;
+
+    color: var(--muted);
+
+    line-height: 1.6;
+}
+
+
+/* ---------------------------------------------------------
+   Evidence viewer
+   --------------------------------------------------------- */
+
+.demo-shell .evidence-panel {
+    padding: 22px 18px;
+
+    background:
+        linear-gradient(
+            180deg,
+            #fff9f3 0%,
+            #fbf2e9 100%
+        );
+
+    border-left: 1px solid var(--border);
+}
+
+
+.demo-shell .evidence-panel > h2 {
+    margin: 4px 0 16px;
+
+    color: var(--primary-dark);
+
+    font-family: var(--font-serif);
+    font-size: 1.22rem;
+}
+
+
+.demo-shell .evidence-card {
+    margin-bottom: 10px;
+    padding: 13px;
+
+    background: rgba(255, 253, 249, 0.94);
+
+    border: 1px solid var(--border);
+    border-radius: 13px;
+
+    box-shadow:
+        0 4px 14px rgba(61, 35, 28, 0.025);
+}
+
+
+.demo-shell .evidence-card > div:first-child {
+    margin-bottom: 9px;
+}
+
+
+.demo-shell .evidence-card p {
+    margin: 0 0 10px;
+
+    color: var(--text);
+
+    font-size: 0.75rem;
+    line-height: 1.55;
+}
+
+
+.demo-shell .evidence-card small {
+    margin-top: 7px;
+
+    display: block;
+
+    color: var(--muted);
+
+    font-size: 0.66rem;
+    line-height: 1.4;
+}
+
+
+/* ---------------------------------------------------------
+   Composer
+   --------------------------------------------------------- */
+
+.demo-shell .composer {
+    padding: 10px 14px;
+
+    gap: 10px;
+
+    background: rgba(255, 250, 244, 0.96);
+
+    border-top: 1px solid var(--border);
+}
+
+
+.demo-shell .composer textarea {
+    min-height: 54px;
+
+    padding: 11px 13px;
+
+    background: var(--surface-white);
+
+    border: 1px solid var(--border);
+    border-radius: 12px;
+
+    resize: none;
+}
+
+
+.demo-shell .composer textarea:focus {
+    border-color: #c59d84;
+
+    box-shadow:
+        0 0 0 3px rgba(100, 19, 40, 0.055);
+
+    outline: none;
+}
+
+
+.demo-shell .composer .button {
+    min-width: 128px;
+
+    align-self: stretch;
+}
+
+
+/* ---------------------------------------------------------
+   Responsive
+   --------------------------------------------------------- */
+
+@media (max-width: 1180px) {
+
+    .demo-shell {
+        grid-template-columns:
+            230px
+            minmax(0, 1fr)
+            275px;
+    }
+
+}
+
+
+@media (max-width: 900px) {
+
+    .demo-banner {
+        align-items: flex-start;
+    }
+
+    .demo-banner-copy > div {
+        display: none;
+    }
+
+    .demo-shell {
+        width: min(100% - 20px, 1480px);
+
+        grid-template-columns:
+            220px
+            minmax(0, 1fr);
+    }
+
+    .demo-shell .evidence-panel {
+        display: none;
+    }
+
+}
+
+
+@media (max-width: 720px) {
+
+    .demo-banner {
+        width: calc(100% - 16px);
+
+        margin-top: 8px;
+        padding: 8px 10px;
+    }
+
+    .demo-banner-actions {
+        gap: 8px;
+    }
+
+    .demo-clear-action {
+        font-size: 0.72rem;
+    }
+
+    .demo-shell {
+        width: calc(100% - 16px);
+
+        grid-template-columns:
+            minmax(0, 1fr);
+
+        min-height: calc(100vh - 130px);
+    }
+
+    .demo-shell .research-sidebar {
+        display: none;
+    }
+
+    .demo-shell .user-message {
+        max-width: 92%;
+    }
+
+}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}
 Interactive Demo - ScholarSync
@@ -10,22 +11,43 @@ research-page
 
 {% block content %}
 
+
+<!-- =========================================================
+     PUBLIC DEMO INFORMATION BAR
+     ========================================================= -->
+
 <section class="demo-banner">
 
-  <div>
-    <span class="eyebrow">
-      Public demo mode
+  <div class="demo-banner-copy">
+
+    <span class="demo-mode-pill">
+      Public demo
     </span>
 
-    <b>
-      No login · no upload · independent of Supabase
-    </b>
+    <div>
+
+      <b>
+        Curated research workspace
+      </b>
+
+      <span>
+        {{ documents|length }} foundational papers
+        · no login
+        · no uploads
+      </span>
+
+    </div>
+
   </div>
 
-  <div>
 
-    <a href="{% url 'demo-clear' %}">
-      Clear
+  <div class="demo-banner-actions">
+
+    <a
+      class="demo-clear-action"
+      href="{% url 'demo-clear' %}"
+    >
+      Clear conversation
     </a>
 
     <a
@@ -34,7 +56,7 @@ research-page
       data-export-link
       {% if not history %}hidden{% endif %}
     >
-      Download conversation PDF
+      Download PDF
     </a>
 
   </div>
@@ -42,13 +64,19 @@ research-page
 </section>
 
 
+
+<!-- =========================================================
+     RESEARCH WORKSPACE
+     ========================================================= -->
+
 <section
   class="research-shell demo-shell"
   data-research-shell
 >
 
+
   <!-- =====================================================
-       CURATED DEMO LIBRARY
+       LEFT SIDEBAR — CURATED LIBRARY
        ===================================================== -->
 
   <aside
@@ -69,7 +97,7 @@ research-page
     {% for document in documents %}
 
       <a
-        class="side-document active"
+        class="side-document"
         href="{% url 'demo-paper' document.id %}"
         target="_blank"
         rel="noopener"
@@ -86,8 +114,8 @@ research-page
           </b>
 
           <small>
-            {{ document.pages }}
-            pages · open paper
+            {{ document.pages }} pages
+            · open paper
           </small>
 
         </div>
@@ -96,6 +124,9 @@ research-page
 
     {% endfor %}
 
+
+
+    <!-- Suggested prompts -->
 
     <div class="demo-note">
 
@@ -144,11 +175,17 @@ research-page
   </aside>
 
 
+
   <!-- =====================================================
-       CONVERSATION
+       CENTER — CONVERSATION
        ===================================================== -->
 
   <section class="chat-panel">
+
+
+    <!-- =================================================
+         CONVERSATION HEADER
+         ================================================= -->
 
     <div class="chat-head">
 
@@ -190,6 +227,7 @@ research-page
     </div>
 
 
+
     <!-- =================================================
          MESSAGE STREAM
          ================================================= -->
@@ -198,6 +236,7 @@ research-page
       class="message-stream"
       data-message-stream
     >
+
 
       {% for message in history %}
 
@@ -212,6 +251,9 @@ research-page
           "
         >
 
+
+          <!-- Message role -->
+
           <span class="message-role">
 
             {% if message.role == 'USER' %}
@@ -222,6 +264,9 @@ research-page
 
           </span>
 
+
+
+          <!-- Copy -->
 
           <button
             type="button"
@@ -240,6 +285,9 @@ research-page
           </button>
 
 
+
+          <!-- Raw copy source -->
+
           <span
             hidden
             data-message-raw
@@ -247,6 +295,9 @@ research-page
             {{ message.content }}
           </span>
 
+
+
+          <!-- Message content -->
 
           {% if message.role == 'USER' %}
 
@@ -264,6 +315,7 @@ research-page
             </div>
 
           {% endif %}
+
 
 
           <!-- =============================================
@@ -329,37 +381,52 @@ research-page
 
           {% endif %}
 
+
         </article>
 
 
+
       {% empty %}
+
+
+        <!-- =================================================
+             EMPTY CONVERSATION
+             ================================================= -->
 
         <div
           class="chat-empty"
           data-chat-empty
         >
 
-          <span class="brand-mark large">
-            S
-          </span>
+          <img
+            class="chat-empty-logo"
+            src="{% static 'images/logo-mark.svg' %}"
+            alt=""
+            aria-hidden="true"
+          />
+
 
           <h2>
             Ask across three foundational
             attention papers
           </h2>
 
+
           <p>
-            ScholarSync retrieves supporting evidence
-            first, answers from the curated research
-            library, and shows the exact paper pages
-            used.
+            ScholarSync retrieves supporting evidence first,
+            answers from this curated research library,
+            and links every grounded response back to
+            the exact paper pages used.
           </p>
 
         </div>
 
+
       {% endfor %}
 
+
     </div>
+
 
 
     <!-- =================================================
@@ -391,7 +458,7 @@ research-page
         maxlength="2000"
         required
         data-question-input
-        placeholder="Ask about attention, convolutional sequence models, Transformers, or compare the papers..."
+        placeholder="Ask about attention, convolutional sequence models, Transformers, formulas, or compare the papers..."
       ></textarea>
 
 
@@ -405,11 +472,13 @@ research-page
 
     </form>
 
+
   </section>
 
 
+
   <!-- =====================================================
-       EVIDENCE VIEWER
+       RIGHT SIDEBAR — EVIDENCE VIEWER
        ===================================================== -->
 
   <aside class="evidence-panel">
@@ -425,9 +494,13 @@ research-page
 
     <div data-evidence-list>
 
+
       {% for citation in latest_citations %}
 
         <article class="evidence-card">
+
+
+          <!-- Citation number + page -->
 
           <div>
 
@@ -442,10 +515,16 @@ research-page
           </div>
 
 
+
+          <!-- Evidence excerpt -->
+
           <p>
             {{ citation.excerpt }}
           </p>
 
+
+
+          <!-- Source PDF -->
 
           <a
             href="{% url 'demo-paper' citation.document_id %}#page={{ citation.page }}"
@@ -456,12 +535,17 @@ research-page
           </a>
 
 
+
+          <!-- Source metadata -->
+
           <small>
             {{ citation.source }}
-            · retrieval score
-            {{ citation.score }}
+            · retrieval score {{ citation.score }}
           </small>
 
+
+
+          <!-- Verification state -->
 
           <span
             class="
@@ -494,24 +578,30 @@ research-page
 
           </span>
 
+
         </article>
 
 
+
       {% empty %}
+
 
         <p
           class="muted"
           data-evidence-empty
         >
-          Supporting passages will appear
-          after your first grounded answer.
+          Supporting passages will appear after
+          your first grounded answer.
         </p>
 
+
       {% endfor %}
+
 
     </div>
 
   </aside>
+
 
 </section>
 
