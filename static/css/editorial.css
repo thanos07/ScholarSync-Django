@@ -4245,3 +4245,352 @@ h3 {
     }
 
 }
+
+/* =========================================================
+   46. CREATE WORKSPACE — EDITORIAL FORM
+   ========================================================= */
+
+
+/* ---------------------------------------------------------
+   Page
+   --------------------------------------------------------- */
+
+.workspace-form-page {
+    min-height: calc(100vh - 180px);
+
+    padding:
+        56px
+        20px
+        68px;
+}
+
+
+.workspace-form-shell {
+    width: min(640px, 100%);
+
+    margin-inline: auto;
+}
+
+
+/* ---------------------------------------------------------
+   Back link
+   --------------------------------------------------------- */
+
+.workspace-form-back {
+    width: fit-content;
+
+    margin-bottom: 16px;
+
+    display: inline-flex;
+    align-items: center;
+
+    gap: 7px;
+
+    color: var(--muted);
+
+    font-size: 0.8rem;
+    font-weight: 700;
+
+    text-decoration: none;
+
+    transition:
+        color 140ms ease,
+        transform 140ms ease;
+}
+
+
+.workspace-form-back:hover {
+    color: var(--primary);
+
+    text-decoration: none;
+
+    transform: translateX(-2px);
+}
+
+
+/* ---------------------------------------------------------
+   Main card
+   --------------------------------------------------------- */
+
+.workspace-form-card {
+    padding: 34px;
+
+    background:
+        rgba(255, 253, 249, 0.94);
+
+    border: 1px solid var(--border);
+    border-radius: 20px;
+
+    box-shadow:
+        0 16px 42px
+        rgba(61, 35, 28, 0.065);
+}
+
+
+/* ---------------------------------------------------------
+   Heading
+   --------------------------------------------------------- */
+
+.workspace-form-header {
+    margin-bottom: 28px;
+
+    padding-bottom: 24px;
+
+    border-bottom: 1px solid var(--border);
+}
+
+
+.workspace-form-header .eyebrow {
+    margin-bottom: 8px;
+}
+
+
+.workspace-form-header h1 {
+    margin: 0 0 10px;
+
+    color: var(--primary-dark);
+
+    font-family: var(--font-serif);
+
+    font-size:
+        clamp(
+            2.35rem,
+            6vw,
+            3.15rem
+        );
+
+    line-height: 1;
+
+    letter-spacing: -0.04em;
+}
+
+
+.workspace-form-header p {
+    max-width: 520px;
+
+    margin: 0;
+
+    color: var(--muted);
+
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+
+/* ---------------------------------------------------------
+   Form
+   --------------------------------------------------------- */
+
+.workspace-create-form {
+    display: flex;
+    flex-direction: column;
+
+    gap: 22px;
+}
+
+
+.workspace-field {
+    display: flex;
+    flex-direction: column;
+
+    gap: 6px;
+}
+
+
+.workspace-field label {
+    color: var(--text);
+
+    font-size: 0.86rem;
+    font-weight: 800;
+}
+
+
+.workspace-field-help {
+    margin-bottom: 3px;
+
+    color: var(--muted);
+
+    font-size: 0.74rem;
+    line-height: 1.45;
+}
+
+
+/* ---------------------------------------------------------
+   Inputs
+   --------------------------------------------------------- */
+
+.workspace-field input,
+.workspace-field textarea {
+    width: 100%;
+
+    color: var(--text);
+    background: var(--surface-white);
+
+    border: 1px solid var(--border);
+    border-radius: 12px;
+
+    font: inherit;
+    font-size: 0.9rem;
+
+    transition:
+        border-color 140ms ease,
+        box-shadow 140ms ease,
+        background 140ms ease;
+}
+
+
+.workspace-field input {
+    min-height: 48px;
+
+    padding:
+        11px
+        13px;
+}
+
+
+.workspace-field textarea {
+    min-height: 112px;
+
+    padding:
+        12px
+        13px;
+
+    line-height: 1.5;
+
+    resize: vertical;
+}
+
+
+.workspace-field input:hover,
+.workspace-field textarea:hover {
+    border-color: #d3b29e;
+}
+
+
+.workspace-field input:focus,
+.workspace-field textarea:focus {
+    background: #ffffff;
+
+    border-color: #bd927b;
+
+    box-shadow:
+        0 0 0 3px
+        rgba(100, 19, 40, 0.06);
+
+    outline: none;
+}
+
+
+/* ---------------------------------------------------------
+   Errors
+   --------------------------------------------------------- */
+
+.workspace-field-errors,
+.workspace-form-errors {
+    color: var(--error);
+
+    font-size: 0.75rem;
+}
+
+
+.workspace-field-errors ul,
+.workspace-form-errors ul {
+    margin: 3px 0 0;
+
+    padding-left: 17px;
+}
+
+
+/* ---------------------------------------------------------
+   Actions
+   --------------------------------------------------------- */
+
+.workspace-form-actions {
+    margin-top: 2px;
+    padding-top: 20px;
+
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+
+    gap: 14px;
+
+    border-top: 1px solid var(--border);
+}
+
+
+.workspace-form-cancel {
+    padding: 9px 4px;
+
+    color: var(--muted);
+
+    font-size: 0.82rem;
+    font-weight: 700;
+
+    text-decoration: none;
+}
+
+
+.workspace-form-cancel:hover {
+    color: var(--primary);
+
+    text-decoration: none;
+}
+
+
+/* ---------------------------------------------------------
+   Mobile
+   --------------------------------------------------------- */
+
+@media (max-width: 720px) {
+
+    .workspace-form-page {
+        min-height:
+            calc(100vh - 150px);
+
+        padding:
+            38px
+            16px
+            48px;
+    }
+
+
+    .workspace-form-card {
+        padding: 25px 20px;
+
+        border-radius: 17px;
+    }
+
+
+    .workspace-form-header {
+        margin-bottom: 24px;
+        padding-bottom: 20px;
+    }
+
+
+    .workspace-form-header h1 {
+        font-size:
+            clamp(
+                2.25rem,
+                12vw,
+                2.8rem
+            );
+    }
+
+
+    .workspace-form-actions {
+        align-items: stretch;
+        flex-direction: column-reverse;
+    }
+
+
+    .workspace-form-actions .button {
+        width: 100%;
+    }
+
+
+    .workspace-form-cancel {
+        text-align: center;
+    }
+
+}

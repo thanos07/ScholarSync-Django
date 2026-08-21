@@ -1,1 +1,153 @@
-{% extends "base.html" %}{% block title %}New workspace - ScholarSync{% endblock %}{% block content %}<section class="auth-shell"><div class="auth-card"><span class="eyebrow">New research space</span><h1>Create workspace</h1><form method="post" class="stack-form">{% csrf_token %}{{ form.as_p }}<button class="button" type="submit">Create workspace</button></form></div></section>{% endblock %}
+{% extends "base.html" %}
+
+{% block title %}
+New workspace - ScholarSync
+{% endblock %}
+
+{% block content %}
+
+<div class="workspace-form-page">
+
+  <section class="workspace-form-shell">
+
+    <!-- =================================================
+         BACK
+         ================================================= -->
+
+    <a
+      class="workspace-form-back"
+      href="{% url 'workspace-list' %}"
+    >
+      <span aria-hidden="true">←</span>
+      Back to workspaces
+    </a>
+
+
+    <!-- =================================================
+         FORM CARD
+         ================================================= -->
+
+    <div class="workspace-form-card">
+
+      <header class="workspace-form-header">
+
+        <span class="eyebrow">
+          New research space
+        </span>
+
+        <h1>
+          Create workspace
+        </h1>
+
+        <p>
+          Give your research topic a clear home.
+          You can add papers and start evidence-grounded
+          conversations after creating it.
+        </p>
+
+      </header>
+
+
+      <form
+        method="post"
+        class="workspace-create-form"
+      >
+
+        {% csrf_token %}
+
+
+        {% if form.non_field_errors %}
+
+          <div class="workspace-form-errors">
+            {{ form.non_field_errors }}
+          </div>
+
+        {% endif %}
+
+
+        <!-- =============================================
+             NAME
+             ============================================= -->
+
+        <div class="workspace-field">
+
+          <label for="{{ form.name.id_for_label }}">
+            Workspace name
+          </label>
+
+          <span class="workspace-field-help">
+            Use a short name that identifies the research topic.
+          </span>
+
+          {{ form.name }}
+
+          {% if form.name.errors %}
+
+            <div class="workspace-field-errors">
+              {{ form.name.errors }}
+            </div>
+
+          {% endif %}
+
+        </div>
+
+
+        <!-- =============================================
+             DESCRIPTION
+             ============================================= -->
+
+        <div class="workspace-field">
+
+          <label for="{{ form.description.id_for_label }}">
+            Description
+          </label>
+
+          <span class="workspace-field-help">
+            Optional context about the thesis, paper,
+            project, or research question.
+          </span>
+
+          {{ form.description }}
+
+          {% if form.description.errors %}
+
+            <div class="workspace-field-errors">
+              {{ form.description.errors }}
+            </div>
+
+          {% endif %}
+
+        </div>
+
+
+        <!-- =============================================
+             ACTIONS
+             ============================================= -->
+
+        <div class="workspace-form-actions">
+
+          <a
+            class="workspace-form-cancel"
+            href="{% url 'workspace-list' %}"
+          >
+            Cancel
+          </a>
+
+          <button
+            class="button"
+            type="submit"
+          >
+            Create workspace
+          </button>
+
+        </div>
+
+      </form>
+
+    </div>
+
+  </section>
+
+</div>
+
+{% endblock %}
