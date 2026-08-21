@@ -1,4 +1,154 @@
-{% extends "base.html" %}{% block title %}Workspaces - ScholarSync{% endblock %}{% block content %}
-<section class="shell page-top"><div><span class="eyebrow">Research dashboard</span><h1>Your workspaces</h1><p>Keep each topic and its evidence in a separate private space.</p></div><a class="button" href="{% url 'workspace-create' %}">New workspace</a></section>
-<section class="shell card-grid">{% for workspace in workspaces %}<a class="workspace-card" href="{% url 'workspace-detail' workspace.id %}"><div class="workspace-icon">{{ workspace.name|first|upper }}</div><div><h2>{{ workspace.name }}</h2><p>{{ workspace.description|default:"No description yet." }}</p><span>{{ workspace.documents.count }} documents · {{ workspace.conversations.count }} conversations</span></div></a>{% empty %}<div class="empty-state"><h2>Create your first research workspace</h2><p>Group documents and conversations by thesis, paper, or research topic.</p><a class="button" href="{% url 'workspace-create' %}">Create workspace</a></div>{% endfor %}</section>
+{% extends "base.html" %}
+
+{% block title %}
+Workspaces - ScholarSync
+{% endblock %}
+
+{% block content %}
+
+<div class="workspace-index-page">
+
+
+  <!-- =====================================================
+       PAGE HEADER
+       ===================================================== -->
+
+  <section class="shell workspace-index-head">
+
+    <div class="workspace-index-heading">
+
+      <span class="eyebrow">
+        Research dashboard
+      </span>
+
+      <h1>
+        Your workspaces
+      </h1>
+
+      <p>
+        Keep each topic and its evidence
+        in a separate private space.
+      </p>
+
+    </div>
+
+
+    <a
+      class="button workspace-create-button"
+      href="{% url 'workspace-create' %}"
+    >
+      New workspace
+    </a>
+
+  </section>
+
+
+
+  <!-- =====================================================
+       WORKSPACE COLLECTION
+       ===================================================== -->
+
+  <section
+    class="shell workspace-card-grid"
+    aria-label="Your research workspaces"
+  >
+
+    {% for workspace in workspaces %}
+
+      {% with document_count=workspace.documents.count conversation_count=workspace.conversations.count %}
+
+        <a
+          class="workspace-index-card"
+          href="{% url 'workspace-detail' workspace.id %}"
+        >
+
+          <div class="workspace-card-main">
+
+            <div
+              class="workspace-index-icon"
+              aria-hidden="true"
+            >
+              {{ workspace.name|first|upper }}
+            </div>
+
+
+            <div class="workspace-card-copy">
+
+              <div class="workspace-card-heading">
+
+                <h2>
+                  {{ workspace.name }}
+                </h2>
+
+                <span
+                  class="workspace-card-arrow"
+                  aria-hidden="true"
+                >
+                  →
+                </span>
+
+              </div>
+
+
+              <p>
+                {{ workspace.description|default:"No description yet." }}
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <div class="workspace-card-meta">
+
+            <span>
+              {{ document_count }} documents
+            </span>
+
+            <span
+              class="workspace-meta-dot"
+              aria-hidden="true"
+            >
+              ·
+            </span>
+
+            <span>
+              {{ conversation_count }} conversations
+            </span>
+
+          </div>
+
+        </a>
+
+      {% endwith %}
+
+
+    {% empty %}
+
+      <div class="workspace-index-empty">
+
+        <h2>
+          Create your first research workspace
+        </h2>
+
+        <p>
+          Group documents and conversations by
+          thesis, paper, or research topic.
+        </p>
+
+        <a
+          class="button"
+          href="{% url 'workspace-create' %}"
+        >
+          Create workspace
+        </a>
+
+      </div>
+
+    {% endfor %}
+
+  </section>
+
+</div>
+
 {% endblock %}
